@@ -18,6 +18,7 @@ import (
 	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
 	"github.com/rafaelcoelhox/labbend/internal/core/health"
 	corelogger "github.com/rafaelcoelhox/labbend/internal/core/logger"
+	"github.com/rafaelcoelhox/labbend/internal/core/monitoring"
 	"github.com/rafaelcoelhox/labbend/internal/core/saga"
 	"github.com/rafaelcoelhox/labbend/internal/users"
 	"gorm.io/gorm/logger"
@@ -33,6 +34,7 @@ type App struct {
 	sagaManager      *saga.SagaManager
 	healthMgr        *health.Manager
 	outboxRepository *eventbus.OutboxRepository
+	monitor          *monitoring.Monitor
 }
 
 // NewApp - cria nova instância da aplicação
@@ -83,6 +85,9 @@ func NewApp(config Config) (*App, error) {
 	// Setup Saga Manager
 	sagaManager := saga.NewSagaManager(log)
 
+	// Setup Monitor - Sistema de monitoramento completo
+	monitor := monitoring.NewMonitor(log)
+
 	// Setup Event Bus components
 	immediateEventBus := eventbus.New(log)
 	outboxRepository := eventbus.NewOutboxRepository(db)
@@ -113,6 +118,7 @@ func NewApp(config Config) (*App, error) {
 		zap.Bool("production", config.IsProduction()),
 		zap.Bool("transactional_events", true),
 		zap.Bool("saga_enabled", true),
+		zap.Bool("monitoring_enabled", true),
 	)
 
 	return &App{
@@ -124,12 +130,16 @@ func NewApp(config Config) (*App, error) {
 		sagaManager:      sagaManager,
 		healthMgr:        healthMgr,
 		outboxRepository: outboxRepository,
+		monitor:          monitor,
 	}, nil
 }
 
 // Start - inicia a aplicação
 func (a *App) Start(ctx context.Context) error {
 	a.logger.Info("starting application")
+
+	// Iniciar sistema de monitoramento
+	a.monitor.Start(ctx)
 
 	// Iniciar Event Bus Manager (processamento de outbox em background)
 	a.eventBusManager.Start(ctx)
@@ -410,9 +420,12 @@ func (a *App) Start(ctx context.Context) error {
 		})
 	})
 
+	// Configurar rotas de monitoramento (Prometheus, pprof, etc.)
+	a.monitor.SetupRoutes(router)
+
 	// Metrics endpoint
-	router.GET("/metrics", func(c *gin.Context) {
-		a.logger.Debug("metrics requested")
+	router.GET("/metrics-info", func(c *gin.Context) {
+		a.logger.Debug("metrics info requested")
 		// Em produção usaria Prometheus metrics
 		c.JSON(http.StatusOK, gin.H{
 			"uptime_seconds": time.Since(time.Now().Add(-1 * time.Hour)).Seconds(), // Mock
