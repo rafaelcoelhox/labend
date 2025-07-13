@@ -8,5 +8,5 @@ package mocks
 //go:generate mockgen -destination=challenges_userservice_mock.go -package=mocks -mock_names=UserService=MockChallengesUserService github.com/rafaelcoelhox/labbend/internal/challenges UserService
 //go:generate mockgen -destination=users_eventbus_mock.go -package=mocks -mock_names=EventBus=MockUsersEventBus github.com/rafaelcoelhox/labbend/internal/users EventBus
 //go:generate mockgen -destination=challenges_eventbus_mock.go -package=mocks -mock_names=EventBus=MockChallengesEventBus github.com/rafaelcoelhox/labbend/internal/challenges EventBus
-//go:generate mockgen -destination=eventbus_handler_mock.go -package=mocks -mock_names=EventHandler=MockEventHandler github.com/rafaelcoelhox/labbend/internal/core/eventbus EventHandler
-//go:generate mockgen -destination=logger_mock.go -package=mocks -mock_names=Logger=MockLogger github.com/rafaelcoelhox/labbend/internal/core/logger Logger
+//go:generate mockgen -destination=eventbus_handler_mock.go -package=mocks -mock_names=EventHandler=MockEventHandler github.com/rafaelcoelhox/labbend/pkg/eventbus EventHandler
+//go:generate mockgen -destination=logger_mock.go -package=mocks -mock_names=Logger=MockLogger github.com/rafaelcoelhox/labbend/pkg/logger Logger

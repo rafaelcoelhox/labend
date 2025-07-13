@@ -6,7 +6,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/rafaelcoelhox/labbend/internal/challenges"
-	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
+	"github.com/rafaelcoelhox/labbend/pkg/eventbus"
 	"github.com/rafaelcoelhox/labbend/internal/users"
 	"github.com/stretchr/testify/assert"
 )

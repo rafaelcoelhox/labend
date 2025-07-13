@@ -9,11 +9,11 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
-	"github.com/rafaelcoelhox/labbend/internal/core/database"
-	"github.com/rafaelcoelhox/labbend/internal/core/errors"
-	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
-	"github.com/rafaelcoelhox/labbend/internal/core/logger"
-	"github.com/rafaelcoelhox/labbend/internal/core/saga"
+	"github.com/rafaelcoelhox/labbend/pkg/database"
+	"github.com/rafaelcoelhox/labbend/pkg/errors"
+	"github.com/rafaelcoelhox/labbend/pkg/eventbus"
+	"github.com/rafaelcoelhox/labbend/pkg/logger"
+	"github.com/rafaelcoelhox/labbend/pkg/saga"
 )
 
 // EventBus - interface para comunicação entre módulos

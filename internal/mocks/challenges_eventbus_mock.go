@@ -9,7 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	eventbus "github.com/rafaelcoelhox/labbend/internal/core/eventbus"
+	eventbus "github.com/rafaelcoelhox/labbend/pkg/eventbus"
 	gorm "gorm.io/gorm"
 )
 

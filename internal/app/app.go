@@ -4,37 +4,36 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	graphql "github.com/graph-gophers/graphql-go"
-	"github.com/graph-gophers/graphql-go/relay"
+	"github.com/graphql-go/handler"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
-	"github.com/rafaelcoelhox/labbend/internal/app/graph"
 	"github.com/rafaelcoelhox/labbend/internal/challenges"
-	"github.com/rafaelcoelhox/labbend/internal/core/database"
-	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
-	"github.com/rafaelcoelhox/labbend/internal/core/health"
-	corelogger "github.com/rafaelcoelhox/labbend/internal/core/logger"
-	"github.com/rafaelcoelhox/labbend/internal/core/monitoring"
-	"github.com/rafaelcoelhox/labbend/internal/core/saga"
+	schemas_configuration "github.com/rafaelcoelhox/labbend/internal/config/graphql"
 	"github.com/rafaelcoelhox/labbend/internal/users"
+	"github.com/rafaelcoelhox/labbend/pkg/database"
+	"github.com/rafaelcoelhox/labbend/pkg/eventbus"
+	"github.com/rafaelcoelhox/labbend/pkg/health"
+	corelogger "github.com/rafaelcoelhox/labbend/pkg/logger"
+	"github.com/rafaelcoelhox/labbend/pkg/monitoring"
+	"github.com/rafaelcoelhox/labbend/pkg/saga"
 	"gorm.io/gorm/logger"
 )
 
 // App - estrutura principal da aplicação
 type App struct {
-	config           Config
-	db               *gorm.DB
-	logger           corelogger.Logger
-	eventBusManager  *eventbus.EventBusManager
-	txManager        *database.TxManager
-	sagaManager      *saga.SagaManager
-	healthMgr        *health.Manager
-	outboxRepository *eventbus.OutboxRepository
-	monitor          *monitoring.Monitor
+	config      Config
+	db          *gorm.DB
+	logger      corelogger.Logger
+	eventBus    *eventbus.EventBus
+	txManager   *database.TxManager
+	sagaManager *saga.SagaManager
+	healthMgr   *health.Manager
+	monitor     *monitoring.Monitor
 }
 
 // NewApp - cria nova instância da aplicação
@@ -48,8 +47,6 @@ func NewApp(config Config) (*App, error) {
 		Environment:      config.Environment,
 		EnableCaller:     true,
 		EnableStacktrace: config.IsProduction(),
-		OutputPaths:      []string{"stdout"},
-		ErrorOutputPaths: []string{"stderr"},
 	}
 
 	log, err = corelogger.NewWithConfig(loggerConfig)
@@ -57,477 +54,200 @@ func NewApp(config Config) (*App, error) {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
 	}
 
-	// Setup database com configuração avançada
-	dbConfig := config.GetDatabaseConfig()
-
-	// Configurar log level baseado no ambiente
-	var logLevel logger.LogLevel
-	if config.IsProduction() {
-		logLevel = logger.Warn
-	} else {
-		logLevel = logger.Info
+	// Configurar logger do GORM
+	var gormLogLevel logger.LogLevel
+	switch config.LogLevel {
+	case "debug":
+		gormLogLevel = logger.Info
+	case "warn":
+		gormLogLevel = logger.Warn
+	case "error":
+		gormLogLevel = logger.Error
+	default:
+		gormLogLevel = logger.Silent
 	}
 
+	// Setup database
 	db, err := database.Connect(database.Config{
-		DSN:          dbConfig.DSN,
-		MaxIdleConns: dbConfig.MaxIdleConns,
-		MaxOpenConns: dbConfig.MaxOpenConns,
-		MaxLifetime:  dbConfig.ConnMaxLifetime,
-		LogLevel:     logLevel,
+		DSN:          config.DatabaseURL,
+		MaxIdleConns: config.MaxIdleConns,
+		MaxOpenConns: config.MaxOpenConns,
+		MaxLifetime:  config.ConnMaxLifetime,
+		LogLevel:     gormLogLevel,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Setup Transaction Manager
+	log.Info("Database connection established", zap.String("database", config.DatabaseURL))
+
+	// Setup database transaction manager
 	txManager := database.NewTxManager(db)
 
-	// Setup Saga Manager
+	// Setup event bus
+	eventBus := eventbus.New(log)
+
+	// Setup saga manager
 	sagaManager := saga.NewSagaManager(log)
-
-	// Setup Monitor - Sistema de monitoramento completo
-	monitor := monitoring.NewMonitor(log)
-
-	// Setup Event Bus components
-	immediateEventBus := eventbus.New(log)
-	outboxRepository := eventbus.NewOutboxRepository(db)
-	transactionalEventBus := eventbus.NewTransactionalEventBus(immediateEventBus, outboxRepository, log)
-	eventBusManager := eventbus.NewEventBusManager(immediateEventBus, transactionalEventBus, log)
-
-	// Auto migrate (incluindo tabela de outbox)
-	if err := database.AutoMigrate(db,
-		&users.User{},
-		&users.UserXP{},
-		&challenges.Challenge{},
-		&challenges.ChallengeSubmission{},
-		&challenges.ChallengeVote{},
-		&eventbus.OutboxEvent{}, // Tabela do outbox
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
 
 	// Setup health manager
 	healthMgr := health.NewManager()
 	healthMgr.Register("database", health.NewDatabaseChecker(db))
-	healthMgr.Register("memory", health.NewMemoryChecker())
-	healthMgr.Register("eventbus", health.NewEventBusChecker(immediateEventBus))
 
-	log.Info("application initialized",
-		zap.String("environment", config.Environment),
-		zap.String("port", config.Port),
-		zap.Bool("production", config.IsProduction()),
-		zap.Bool("transactional_events", true),
-		zap.Bool("saga_enabled", true),
-		zap.Bool("monitoring_enabled", true),
-	)
+	// Setup monitoring
+	monitor := monitoring.NewMonitor(log)
 
 	return &App{
-		config:           config,
-		db:               db,
-		logger:           log,
-		eventBusManager:  eventBusManager,
-		txManager:        txManager,
-		sagaManager:      sagaManager,
-		healthMgr:        healthMgr,
-		outboxRepository: outboxRepository,
-		monitor:          monitor,
+		config:      config,
+		db:          db,
+		logger:      log,
+		eventBus:    eventBus,
+		txManager:   txManager,
+		sagaManager: sagaManager,
+		healthMgr:   healthMgr,
+		monitor:     monitor,
 	}, nil
 }
 
-// Start - inicia a aplicação
 func (a *App) Start(ctx context.Context) error {
-	a.logger.Info("starting application")
-
-	// Iniciar sistema de monitoramento
-	a.monitor.Start(ctx)
-
-	// Iniciar Event Bus Manager (processamento de outbox em background)
-	a.eventBusManager.Start(ctx)
+	a.logger.Info("Starting application", zap.String("environment", a.config.Environment))
 
 	// Setup repositories
 	userRepo := users.NewRepository(a.db)
 	challengeRepo := challenges.NewRepository(a.db)
 
-	// Setup services com novos componentes
-	userService := users.NewService(userRepo, a.logger, a.eventBusManager.GetTransactional(), a.txManager)
-	challengeService := challenges.NewService(challengeRepo, userService, a.logger, a.eventBusManager.GetTransactional(), a.txManager, a.sagaManager)
+	// Setup services
+	userService := users.NewService(userRepo, a.logger, a.eventBus, a.txManager)
+	challengeService := challenges.NewService(challengeRepo, userService, a.logger, a.eventBus, a.txManager, a.sagaManager)
 
-	// Setup resolvers
-	userResolver := users.NewResolver(userService, a.logger)
-	challengeResolver := challenges.NewResolver(challengeService, a.logger)
-
-	// Setup GraphQL resolver para graph-gophers/graphql-go
-	graphqlResolver := graph.NewRootResolver(userService, challengeService, a.logger)
-
-	// Setup GraphQL schema
-	schema, err := graphql.ParseSchema(graph.Schema, graphqlResolver)
+	// Setup GraphQL schema usando configuração automática
+	schema, err := schemas_configuration.ConfigureSchema(userService, challengeService, a.logger)
 	if err != nil {
-		return fmt.Errorf("failed to parse GraphQL schema: %w", err)
+		return fmt.Errorf("failed to build GraphQL schema: %w", err)
 	}
 
-	// Setup HTTP server
-	gin.SetMode(gin.ReleaseMode)
-	if !a.config.IsProduction() {
-		gin.SetMode(gin.DebugMode)
+	// Setup server
+	if a.config.IsProduction() {
+		gin.SetMode(gin.ReleaseMode)
 	}
 
-	router := gin.New()
+	router := gin.Default()
+
+	// Middleware básico
 	router.Use(gin.Recovery())
 
-	// Middleware de logging
-	router.Use(func(c *gin.Context) {
-		start := time.Now()
-		path := c.Request.URL.Path
-		method := c.Request.Method
-
-		c.Next()
-
-		// Log da requisição
-		a.logger.HTTP(method, path, c.Writer.Status(), time.Since(start),
-			corelogger.String("client_ip", c.ClientIP()),
-			corelogger.String("user_agent", c.Request.UserAgent()),
-			corelogger.Int("body_size", c.Writer.Size()),
-		)
-	})
-
-	// Recovery middleware com logging customizado
-	router.Use(func(c *gin.Context) {
-		defer func() {
-			if err := recover(); err != nil {
-				a.logger.Error("panic recovered",
-					zap.Any("error", err),
-					zap.String("path", c.Request.URL.Path),
-					zap.String("method", c.Request.Method),
-				)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-				c.Abort()
-			}
-		}()
-		c.Next()
-	})
-
-	// Add CORS middleware
-	router.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
-	})
-
-	// GraphQL endpoint usando graph-gophers/graphql-go
-	handler := &relay.Handler{Schema: schema}
-
-	router.POST("/graphql", func(c *gin.Context) {
-		handler.ServeHTTP(c.Writer, c.Request)
-	})
-
-	// GraphQL Playground (implementação simples)
-	router.GET("/graphql", func(c *gin.Context) {
-		c.Header("Content-Type", "text/html")
-		c.String(http.StatusOK, `<!DOCTYPE html>
-<html>
-<head>
-  <title>GraphQL Playground</title>
-  <style>
-    body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
-    .container { max-width: 800px; margin: 0 auto; }
-    h1 { color: #333; }
-    p { margin: 10px 0; }
-    .endpoint { background: #f5f5f5; padding: 10px; border-radius: 5px; margin: 10px 0; }
-    .code { background: #f5f5f5; padding: 10px; border-radius: 5px; font-family: monospace; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>GraphQL API - LabEnd</h1>
-    <p>Este é o endpoint GraphQL da aplicação LabEnd.</p>
-    
-    <div class="endpoint">
-      <strong>Endpoint:</strong> POST /graphql
-    </div>
-    
-    <h2>Exemplo de Query</h2>
-    <div class="code">
-      query {
-        users(limit: 10) {
-          id
-          name
-          email
-          totalXP
-        }
-      }
-    </div>
-    
-    <h2>Exemplo de Mutation</h2>
-    <div class="code">
-      mutation {
-        createUser(input: {name: "João", email: "joao@exemplo.com"}) {
-          id
-          name
-          email
-        }
-      }
-    </div>
-    
-    <p>Use um cliente GraphQL como Postman ou curl para fazer requisições.</p>
-  </div>
-</body>
-</html>`)
-	})
-
-	// API routes
-	api := router.Group("/api")
-	{
-		// User routes
-		api.GET("/users", func(c *gin.Context) {
-			start := time.Now()
-			// Usar método otimizado para buscar usuários com XP
-			users, err := userResolver.Users(c.Request.Context(), nil, nil)
-			if err != nil {
-				a.logger.Error("failed to get users",
-					zap.Error(err),
-					zap.String("endpoint", "GET /api/users"),
-				)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			a.logger.Performance("get_users", time.Since(start),
-				zap.Int("user_count", len(users)),
-			)
-			c.JSON(http.StatusOK, users)
-		})
-
-		api.GET("/users/:id", func(c *gin.Context) {
-			id := c.Param("id")
-			requestLogger := a.logger.WithFields(zap.String("user_id", id))
-
-			user, err := userResolver.User(c.Request.Context(), id)
-			if err != nil {
-				requestLogger.Error("failed to get user", zap.Error(err))
-				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-				return
-			}
-			requestLogger.Debug("user retrieved successfully")
-			c.JSON(http.StatusOK, user)
-		})
-
-		api.POST("/users", func(c *gin.Context) {
-			var input users.CreateUserInput
-			if err := c.ShouldBindJSON(&input); err != nil {
-				a.logger.Warn("invalid user input",
-					zap.Error(err),
-					zap.Any("input", input),
-				)
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-
-			start := time.Now()
-			user, err := userResolver.CreateUser(c.Request.Context(), input)
-			if err != nil {
-				a.logger.Error("failed to create user",
-					zap.Error(err),
-					zap.String("email", input.Email),
-				)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			a.logger.Event("user_created", "api",
-				zap.String("user_email", user.Email),
-				zap.Uint("user_id", user.ID),
-			)
-			a.logger.Performance("create_user", time.Since(start))
-			c.JSON(http.StatusCreated, user)
-		})
-
-		// Challenge routes
-		api.GET("/challenges", func(c *gin.Context) {
-			start := time.Now()
-			challenges, err := challengeResolver.Challenges(c.Request.Context(), nil, nil)
-			if err != nil {
-				a.logger.Error("failed to get challenges",
-					zap.Error(err),
-					zap.String("endpoint", "GET /api/challenges"),
-				)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			a.logger.Performance("get_challenges", time.Since(start),
-				zap.Int("challenge_count", len(challenges)),
-			)
-			c.JSON(http.StatusOK, challenges)
-		})
-
-		api.POST("/challenges", func(c *gin.Context) {
-			var input challenges.CreateChallengeInput
-			if err := c.ShouldBindJSON(&input); err != nil {
-				a.logger.Warn("invalid challenge input",
-					zap.Error(err),
-					zap.Any("input", input),
-				)
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-
-			start := time.Now()
-			challenge, err := challengeResolver.CreateChallenge(c.Request.Context(), input)
-			if err != nil {
-				a.logger.Error("failed to create challenge",
-					zap.Error(err),
-					zap.String("title", input.Title),
-				)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			a.logger.Event("challenge_created", "api",
-				zap.String("challenge_title", challenge.Title),
-				zap.Uint("challenge_id", challenge.ID),
-				zap.Int("xp_reward", challenge.XPReward),
-			)
-			a.logger.Performance("create_challenge", time.Since(start))
-			c.JSON(http.StatusCreated, challenge)
-		})
-	}
-
-	// Health check
+	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
-		a.logger.Debug("health check requested")
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-
-	// Health check detalhado
-	router.GET("/health/detailed", func(c *gin.Context) {
-		a.logger.Debug("detailed health check requested")
-
-		// Verificar status do outbox
-		outboxStats, err := a.eventBusManager.GetTransactional().GetOutboxStats(ctx)
-		if err != nil {
-			a.logger.Error("failed to get outbox stats", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get outbox stats"})
-			return
+		status := a.healthMgr.CheckAll(context.Background())
+		statusCode := http.StatusOK
+		if status.Status != health.StatusHealthy {
+			statusCode = http.StatusServiceUnavailable
 		}
-
-		// Verificar sagas em execução
-		runningSagas := a.sagaManager.GetRunningSagas()
-
-		c.JSON(http.StatusOK, gin.H{
-			"status":      "ok",
-			"timestamp":   time.Now().Format(time.RFC3339),
-			"environment": a.config.Environment,
-			"outbox": gin.H{
-				"pending_events": outboxStats.PendingEvents,
-				"failed_events":  outboxStats.FailedEvents,
-			},
-			"sagas": gin.H{
-				"running_count": len(runningSagas),
-			},
-			"database": gin.H{
-				"connected": true,
-			},
-		})
+		c.JSON(statusCode, status)
 	})
-
-	// Endpoint para estatísticas do outbox
-	router.GET("/admin/outbox/stats", func(c *gin.Context) {
-		stats, err := a.eventBusManager.GetTransactional().GetOutboxStats(ctx)
-		if err != nil {
-			a.logger.Error("failed to get outbox stats", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, stats)
-	})
-
-	// Endpoint para forçar processamento do outbox
-	router.POST("/admin/outbox/process", func(c *gin.Context) {
-		if err := a.eventBusManager.GetTransactional().ProcessOutboxEvents(ctx); err != nil {
-			a.logger.Error("failed to process outbox events", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "outbox processing triggered"})
-	})
-
-	// Endpoint para sagas em execução
-	router.GET("/admin/sagas", func(c *gin.Context) {
-		runningSagas := a.sagaManager.GetRunningSagas()
-
-		response := make(map[string]interface{})
-		for id, saga := range runningSagas {
-			response[id] = gin.H{
-				"progress":       saga.GetProgress(),
-				"executed_steps": saga.GetExecutedSteps(),
-				"total_steps":    saga.GetTotalSteps(),
-			}
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"running_sagas": response,
-			"total_count":   len(runningSagas),
-		})
-	})
-
-	// Configurar rotas de monitoramento (Prometheus, pprof, etc.)
-	a.monitor.SetupRoutes(router)
 
 	// Metrics endpoint
-	router.GET("/metrics-info", func(c *gin.Context) {
-		a.logger.Debug("metrics info requested")
-		// Em produção usaria Prometheus metrics
+	router.GET("/metrics", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "metrics endpoint"})
+	})
+
+	// Middleware de CORS simples
+	router.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	})
+
+	// Setup GraphQL handler usando graphql-go/handler
+	graphqlHandler := handler.New(&handler.Config{
+		Schema:     &schema,
+		Pretty:     !a.config.IsProduction(), // JSON formatado apenas em desenvolvimento
+		GraphiQL:   !a.config.IsProduction(), // Interface GraphiQL apenas em desenvolvimento
+		Playground: false,
+	})
+
+	// GraphQL endpoint
+	router.POST("/graphql", func(c *gin.Context) {
+		graphqlHandler.ServeHTTP(c.Writer, c.Request)
+	})
+
+	// GraphQL playground (apenas em desenvolvimento)
+	if !a.config.IsProduction() {
+		router.GET("/graphql", func(c *gin.Context) {
+			graphqlHandler.ServeHTTP(c.Writer, c.Request)
+		})
+	}
+
+	// Health check simples
+	router.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"uptime_seconds": time.Since(time.Now().Add(-1 * time.Hour)).Seconds(), // Mock
-			"environment":    a.config.Environment,
-			"log_level":      a.config.LogLevel,
-			"modules": gin.H{
-				"users":      gin.H{"status": "active"},
-				"challenges": gin.H{"status": "active"},
-			},
+			"message":     "LabEnd API",
+			"version":     "1.0.0",
+			"environment": a.config.Environment,
+			"status":      "healthy",
 		})
 	})
 
-	// Configurar server HTTP
+	// Configurar timeouts do servidor
+	port, _ := strconv.Atoi(a.config.Port)
 	server := &http.Server{
-		Addr:           ":" + a.config.Port,
-		Handler:        router,
-		ReadTimeout:    a.config.ReadTimeout,
-		WriteTimeout:   a.config.WriteTimeout,
-		IdleTimeout:    a.config.IdleTimeout,
-		MaxHeaderBytes: a.config.MaxHeaderBytes,
+		Addr:         fmt.Sprintf(":%d", port),
+		Handler:      router,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
-	a.logger.Info("server starting",
-		zap.String("address", server.Addr),
-		zap.Duration("read_timeout", a.config.ReadTimeout),
-		zap.Duration("write_timeout", a.config.WriteTimeout),
-	)
+	a.logger.Info("Server starting", zap.String("port", a.config.Port))
 
-	// Iniciar servidor
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("failed to start server: %w", err)
+	// Iniciar servidor em goroutine separada
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			a.logger.Fatal("Failed to start server", zap.Error(err))
+		}
+	}()
+
+	// Aguardar sinal de shutdown
+	<-ctx.Done()
+
+	a.logger.Info("Shutting down server...")
+
+	// Context com timeout para o shutdown
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		a.logger.Error("Server forced to shutdown", zap.Error(err))
+		return err
 	}
 
+	a.logger.Info("Server exited properly")
 	return nil
 }
 
-// Stop - para a aplicação gracefully
 func (a *App) Stop() error {
-	a.logger.Info("stopping application")
+	a.logger.Info("Application stopping...")
 
-	// Parar Event Bus Manager
-	a.eventBusManager.Shutdown()
+	// Fechar event bus
+	if a.eventBus != nil {
+		a.eventBus.Shutdown()
+	}
 
-	a.logger.Info("application stopped")
+	// Fechar conexão com o banco de dados
+	if sqlDB, err := a.db.DB(); err == nil {
+		if err := sqlDB.Close(); err != nil {
+			a.logger.Error("Failed to close database connection", zap.Error(err))
+			return err
+		}
+	}
+
+	a.logger.Info("Application stopped successfully")
 	return nil
 }

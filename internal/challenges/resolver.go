@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/rafaelcoelhox/labbend/internal/core/logger"
+	"github.com/rafaelcoelhox/labbend/pkg/logger"
 )
 
 // Resolver - GraphQL resolver

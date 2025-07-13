@@ -6,9 +6,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/rafaelcoelhox/labbend/internal/challenges"
-	"github.com/rafaelcoelhox/labbend/internal/core/database"
-	"github.com/rafaelcoelhox/labbend/internal/core/logger"
-	"github.com/rafaelcoelhox/labbend/internal/core/saga"
+	"github.com/rafaelcoelhox/labbend/pkg/database"
+	"github.com/rafaelcoelhox/labbend/pkg/logger"
+	"github.com/rafaelcoelhox/labbend/pkg/saga"
 	"github.com/rafaelcoelhox/labbend/internal/mocks"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"

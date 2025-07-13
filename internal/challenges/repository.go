@@ -6,7 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/rafaelcoelhox/labbend/internal/core/errors"
+	"github.com/rafaelcoelhox/labbend/pkg/errors"
 )
 
 type Repository interface {

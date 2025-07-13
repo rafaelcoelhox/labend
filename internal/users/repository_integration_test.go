@@ -13,8 +13,8 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/gorm"
 
-	"github.com/rafaelcoelhox/labbend/internal/core/database"
-	"github.com/rafaelcoelhox/labbend/internal/core/errors"
+	"github.com/rafaelcoelhox/labbend/pkg/database"
+	"github.com/rafaelcoelhox/labbend/pkg/errors"
 )
 
 // setupTestDB cria um container PostgreSQL para testes

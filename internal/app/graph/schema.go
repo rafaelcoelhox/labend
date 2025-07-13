@@ -1,98 +1,69 @@
 package graph
 
-const Schema = `
-	type User {
-		id: ID!
-		name: String!
-		email: String!
-		totalXP: Int!
-		createdAt: String!
-		updatedAt: String!
+import (
+	"github.com/graphql-go/graphql"
+	"github.com/rafaelcoelhox/labbend/internal/challenges"
+	"github.com/rafaelcoelhox/labbend/pkg/logger"
+	"github.com/rafaelcoelhox/labbend/internal/users"
+)
+
+// BuildSchema constrói o schema GraphQL completo combinando os módulos
+func BuildSchema(
+	userService users.Service,
+	challengeService challenges.Service,
+	logger logger.Logger,
+) (graphql.Schema, error) {
+	// Combinar queries de todos os módulos
+	allQueries := graphql.Fields{}
+
+	// Adicionar queries dos users
+	userQueries := *users.Queries(userService, logger)
+	for name, query := range userQueries {
+		allQueries[name] = query
 	}
 
-	type UserXP {
-		id: ID!
-		userID: ID!
-		sourceType: String!
-		sourceID: String!
-		amount: Int!
-		createdAt: String!
+	// Adicionar queries dos challenges
+	challengeQueries := *challenges.Queries(challengeService, logger)
+	for name, query := range challengeQueries {
+		allQueries[name] = query
 	}
 
-	type Challenge {
-		id: ID!
-		title: String!
-		description: String!
-		xpReward: Int!
-		status: String!
-		createdAt: String!
-		updatedAt: String!
+	// Combinar mutations de todos os módulos
+	allMutations := graphql.Fields{}
+
+	// Adicionar mutations dos users
+	userMutations := *users.Mutations(userService, logger)
+	for name, mutation := range userMutations {
+		allMutations[name] = mutation
 	}
 
-	type ChallengeSubmission {
-		id: ID!
-		challengeID: ID!
-		userID: ID!
-		proofURL: String!
-		status: String!
-		createdAt: String!
+	// Adicionar mutations dos challenges
+	challengeMutations := *challenges.Mutations(challengeService, logger)
+	for name, mutation := range challengeMutations {
+		allMutations[name] = mutation
 	}
 
-	type ChallengeVote {
-		id: ID!
-		submissionID: ID!
-		userID: ID!
-		approved: Boolean!
-		timeCheck: Int!
-		isValid: Boolean!
-		createdAt: String!
+	// Definir o tipo Query raiz
+	queryType := graphql.NewObject(graphql.ObjectConfig{
+		Name:   "Query",
+		Fields: allQueries,
+	})
+
+	// Definir o tipo Mutation raiz
+	mutationType := graphql.NewObject(graphql.ObjectConfig{
+		Name:   "Mutation",
+		Fields: allMutations,
+	})
+
+	// Construir o schema final
+	schema, err := graphql.NewSchema(graphql.SchemaConfig{
+		Query:    queryType,
+		Mutation: mutationType,
+	})
+
+	if err != nil {
+		return graphql.Schema{}, err
 	}
 
-	input CreateUserInput {
-		name: String!
-		email: String!
-	}
-
-	input UpdateUserInput {
-		name: String
-		email: String
-	}
-
-	input CreateChallengeInput {
-		title: String!
-		description: String!
-		xpReward: Int!
-	}
-
-	input SubmitChallengeInput {
-		challengeID: ID!
-		proofURL: String!
-	}
-
-	input VoteChallengeInput {
-		submissionID: ID!
-		approved: Boolean!
-		timeCheck: Int!
-	}
-
-	type Query {
-		user(id: ID!): User
-		users(limit: Int = 10, offset: Int = 0): [User!]!
-		userXPHistory(userID: ID!): [UserXP!]!
-		
-		challenge(id: ID!): Challenge
-		challenges(limit: Int = 10, offset: Int = 0): [Challenge!]!
-		challengeSubmissions(challengeID: ID!): [ChallengeSubmission!]!
-		challengeVotes(submissionID: ID!): [ChallengeVote!]!
-	}
-
-	type Mutation {
-		createUser(input: CreateUserInput!): User!
-		updateUser(id: ID!, input: UpdateUserInput!): User!
-		deleteUser(id: ID!): Boolean!
-		
-		createChallenge(input: CreateChallengeInput!): Challenge!
-		submitChallenge(input: SubmitChallengeInput!): ChallengeSubmission!
-		voteChallenge(input: VoteChallengeInput!): ChallengeVote!
-	}
-`
+	return schema, nil
+}
