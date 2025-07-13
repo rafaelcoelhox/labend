@@ -6,19 +6,19 @@ schema:
 
 # Where should the generated server code go?
 exec:
-  filename: internal/app/generated.go
-  package: app
+  filename: internal/app/graph/generated.go
+  package: graph
 
 # Where should any generated models go?
 model:
-  filename: internal/app/models_gen.go
-  package: app
+  filename: internal/app/graph/models_gen.go
+  package: graph
 
 # Where should the resolver implementations go?
 resolver:
   layout: follow-schema
-  dir: internal/app
-  package: app
+  dir: internal/app/graph
+  package: graph
 
 # Optional: turn on use of gqlparser/v2
 # parser:
@@ -61,3 +61,33 @@ models:
       - github.com/99designs/gqlgen/graphql.Int
       - github.com/99designs/gqlgen/graphql.Int64
       - github.com/99designs/gqlgen/graphql.Int32
+  User:
+    model:
+      - github.com/rafaelcoelhox/labbend/internal/users.GraphQLUser
+  UserXP:
+    model:
+      - github.com/rafaelcoelhox/labbend/internal/users.UserXP
+  Challenge:
+    model:
+      - github.com/rafaelcoelhox/labbend/internal/challenges.Challenge
+  ChallengeSubmission:
+    model:
+      - github.com/rafaelcoelhox/labbend/internal/challenges.ChallengeSubmission
+  ChallengeVote:
+    model:
+      - github.com/rafaelcoelhox/labbend/internal/challenges.ChallengeVote
+  CreateUserInput:
+    model:
+      - github.com/rafaelcoelhox/labbend/internal/users.CreateUserInput
+  UpdateUserInput:
+    model:
+      - github.com/rafaelcoelhox/labbend/internal/users.UpdateUserInput
+  CreateChallengeInput:
+    model:
+      - github.com/rafaelcoelhox/labbend/internal/challenges.CreateChallengeInput
+  SubmitChallengeInput:
+    model:
+      - github.com/rafaelcoelhox/labbend/internal/challenges.SubmitChallengeInput
+  VoteChallengeInput:
+    model:
+      - github.com/rafaelcoelhox/labbend/internal/challenges.VoteChallengeInput

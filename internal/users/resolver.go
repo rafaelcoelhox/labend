@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	"ecommerce/internal/core/logger"
+	"github.com/rafaelcoelhox/labbend/internal/core/logger"
 )
 
 type GraphQLUser struct {
@@ -51,6 +51,7 @@ func (r *Resolver) User(ctx context.Context, id string) (*GraphQLUser, error) {
 	}, nil
 }
 
+// Users - método otimizado para evitar N+1 queries
 func (r *Resolver) Users(ctx context.Context, limit *int, offset *int) ([]*GraphQLUser, error) {
 	l := 10
 	o := 0
@@ -62,25 +63,21 @@ func (r *Resolver) Users(ctx context.Context, limit *int, offset *int) ([]*Graph
 		o = *offset
 	}
 
-	users, err := r.service.ListUsers(ctx, l, o)
+	// Usar método otimizado que já busca usuários com XP
+	usersWithXP, err := r.service.ListUsersWithXP(ctx, l, o)
 	if err != nil {
 		return nil, err
 	}
 
-	graphqlUsers := make([]*GraphQLUser, len(users))
-	for i, user := range users {
-		totalXP, err := r.service.GetUserTotalXP(ctx, user.ID)
-		if err != nil {
-			totalXP = 0 // Se falhar, usa 0
-		}
-
+	graphqlUsers := make([]*GraphQLUser, len(usersWithXP))
+	for i, userWithXP := range usersWithXP {
 		graphqlUsers[i] = &GraphQLUser{
-			ID:        user.ID,
-			Name:      user.Name,
-			Email:     user.Email,
-			TotalXP:   totalXP,
-			CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z"),
-			UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+			ID:        userWithXP.User.ID,
+			Name:      userWithXP.User.Name,
+			Email:     userWithXP.User.Email,
+			TotalXP:   userWithXP.TotalXP,
+			CreatedAt: userWithXP.User.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			UpdatedAt: userWithXP.User.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 		}
 	}
 

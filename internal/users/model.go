@@ -9,20 +9,20 @@ import (
 
 type User struct {
 	ID        uint           `json:"id" gorm:"primarykey"`
-	Name      string         `json:"name" gorm:"not null"`
+	Name      string         `json:"name" gorm:"not null;index"`
 	Email     string         `json:"email" gorm:"uniqueIndex;not null"`
-	CreatedAt time.Time      `json:"created_at"`
+	CreatedAt time.Time      `json:"created_at" gorm:"index"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 type UserXP struct {
 	ID         uint      `json:"id" gorm:"primarykey"`
-	UserID     uint      `json:"user_id" gorm:"not null;index"`
-	SourceType string    `json:"source_type" gorm:"not null"` // "challenge", "daily_task", etc
-	SourceID   string    `json:"source_id" gorm:"not null"`   // ID do challenge/task
+	UserID     uint      `json:"user_id" gorm:"not null;index:idx_user_xp_user_id"`
+	SourceType string    `json:"source_type" gorm:"not null;index:idx_user_xp_source"`
+	SourceID   string    `json:"source_id" gorm:"not null;index:idx_user_xp_source"`
 	Amount     int       `json:"amount" gorm:"not null"`
-	CreatedAt  time.Time `json:"created_at"`
+	CreatedAt  time.Time `json:"created_at" gorm:"index"`
 }
 
 const (

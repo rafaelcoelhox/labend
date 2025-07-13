@@ -2,10 +2,11 @@ package challenges
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 
-	"ecommerce/internal/core/errors"
+	"github.com/rafaelcoelhox/labbend/internal/core/errors"
 )
 
 type Repository interface {
@@ -36,6 +37,9 @@ func NewRepository(db *gorm.DB) Repository {
 // === CHALLENGE OPERATIONS ===
 
 func (r *repository) CreateChallenge(ctx context.Context, challenge *Challenge) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	if err := r.db.WithContext(ctx).Create(challenge).Error; err != nil {
 		return errors.Internal(err)
 	}
@@ -43,6 +47,9 @@ func (r *repository) CreateChallenge(ctx context.Context, challenge *Challenge) 
 }
 
 func (r *repository) GetChallengeByID(ctx context.Context, id uint) (*Challenge, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	var challenge Challenge
 	err := r.db.WithContext(ctx).First(&challenge, id).Error
 	if err != nil {
@@ -55,6 +62,9 @@ func (r *repository) GetChallengeByID(ctx context.Context, id uint) (*Challenge,
 }
 
 func (r *repository) ListChallenges(ctx context.Context, limit, offset int) ([]*Challenge, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	var challenges []*Challenge
 	err := r.db.WithContext(ctx).
 		Where("status = ?", ChallengeStatusActive).
@@ -71,6 +81,9 @@ func (r *repository) ListChallenges(ctx context.Context, limit, offset int) ([]*
 // === SUBMISSION OPERATIONS ===
 
 func (r *repository) CreateSubmission(ctx context.Context, submission *ChallengeSubmission) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	if err := r.db.WithContext(ctx).Create(submission).Error; err != nil {
 		return errors.Internal(err)
 	}
@@ -78,6 +91,9 @@ func (r *repository) CreateSubmission(ctx context.Context, submission *Challenge
 }
 
 func (r *repository) GetSubmissionByID(ctx context.Context, id uint) (*ChallengeSubmission, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	var submission ChallengeSubmission
 	err := r.db.WithContext(ctx).First(&submission, id).Error
 	if err != nil {
@@ -90,6 +106,9 @@ func (r *repository) GetSubmissionByID(ctx context.Context, id uint) (*Challenge
 }
 
 func (r *repository) GetSubmissionsByChallengeID(ctx context.Context, challengeID uint) ([]*ChallengeSubmission, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	var submissions []*ChallengeSubmission
 	err := r.db.WithContext(ctx).
 		Where("challenge_id = ?", challengeID).
@@ -102,6 +121,9 @@ func (r *repository) GetSubmissionsByChallengeID(ctx context.Context, challengeI
 }
 
 func (r *repository) UpdateSubmission(ctx context.Context, submission *ChallengeSubmission) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	err := r.db.WithContext(ctx).Save(submission).Error
 	if err != nil {
 		return errors.Internal(err)
@@ -110,6 +132,9 @@ func (r *repository) UpdateSubmission(ctx context.Context, submission *Challenge
 }
 
 func (r *repository) HasUserSubmitted(ctx context.Context, userID, challengeID uint) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&ChallengeSubmission{}).
@@ -124,6 +149,9 @@ func (r *repository) HasUserSubmitted(ctx context.Context, userID, challengeID u
 // === VOTE OPERATIONS ===
 
 func (r *repository) CreateVote(ctx context.Context, vote *ChallengeVote) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	if err := r.db.WithContext(ctx).Create(vote).Error; err != nil {
 		return errors.Internal(err)
 	}
@@ -131,9 +159,13 @@ func (r *repository) CreateVote(ctx context.Context, vote *ChallengeVote) error 
 }
 
 func (r *repository) GetVotesBySubmissionID(ctx context.Context, submissionID uint) ([]*ChallengeVote, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	var votes []*ChallengeVote
 	err := r.db.WithContext(ctx).
 		Where("submission_id = ?", submissionID).
+		Order("created_at DESC").
 		Find(&votes).Error
 	if err != nil {
 		return nil, errors.Internal(err)
@@ -142,6 +174,9 @@ func (r *repository) GetVotesBySubmissionID(ctx context.Context, submissionID ui
 }
 
 func (r *repository) CountVotesBySubmissionID(ctx context.Context, submissionID uint) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&ChallengeVote{}).
@@ -154,6 +189,9 @@ func (r *repository) CountVotesBySubmissionID(ctx context.Context, submissionID 
 }
 
 func (r *repository) HasUserVoted(ctx context.Context, userID, submissionID uint) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&ChallengeVote{}).

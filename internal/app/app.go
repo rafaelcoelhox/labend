@@ -9,18 +9,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
-	"ecommerce/internal/challenges"
-	"ecommerce/internal/core/database"
-	"ecommerce/internal/core/eventbus"
-	"ecommerce/internal/core/health"
-	"ecommerce/internal/core/logger"
-	"ecommerce/internal/users"
+	"github.com/rafaelcoelhox/labbend/internal/challenges"
+	"github.com/rafaelcoelhox/labbend/internal/core/database"
+	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
+	"github.com/rafaelcoelhox/labbend/internal/core/health"
+	"github.com/rafaelcoelhox/labbend/internal/core/logger"
+	"github.com/rafaelcoelhox/labbend/internal/users"
 )
 
 // App - aplicação principal
@@ -79,37 +77,96 @@ func New(config Config) (*App, error) {
 
 // Start - inicia a aplicação
 func (a *App) Start() error {
-
-	// Users module
+	// Setup modules
 	userRepo := users.NewRepository(a.db)
 	userService := users.NewService(userRepo, a.logger, a.eventBus)
 	userResolver := users.NewResolver(userService, a.logger)
 
-	// Challenges module
 	challengeRepo := challenges.NewRepository(a.db)
 	challengeService := challenges.NewService(challengeRepo, userService, a.logger, a.eventBus)
 	challengeResolver := challenges.NewResolver(challengeService, a.logger)
 
-	// Setup GraphQL
-	resolver := &Resolver{
-		users:      userResolver,
-		challenges: challengeResolver,
-	}
-
-	srv := handler.NewDefaultServer(NewExecutableSchema(Config{Resolvers: resolver}))
-
 	// Setup HTTP server
 	router := gin.Default()
 
-	// GraphQL endpoint
-	router.POST("/graphql", func(c *gin.Context) {
-		srv.ServeHTTP(c.Writer, c.Request)
+	// Add CORS middleware
+	router.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
 	})
 
-	// GraphQL playground
-	router.GET("/", func(c *gin.Context) {
-		playground.Handler("GraphQL Playground", "/graphql").ServeHTTP(c.Writer, c.Request)
-	})
+	// API routes
+	api := router.Group("/api")
+	{
+		// User routes
+		api.GET("/users", func(c *gin.Context) {
+			// Usar método otimizado para buscar usuários com XP
+			users, err := userResolver.Users(c.Request.Context(), nil, nil)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, users)
+		})
+
+		api.GET("/users/:id", func(c *gin.Context) {
+			id := c.Param("id")
+			user, err := userResolver.User(c.Request.Context(), id)
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, user)
+		})
+
+		api.POST("/users", func(c *gin.Context) {
+			var input users.CreateUserInput
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+
+			user, err := userResolver.CreateUser(c.Request.Context(), input)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusCreated, user)
+		})
+
+		// Challenge routes
+		api.GET("/challenges", func(c *gin.Context) {
+			challenges, err := challengeResolver.Challenges(c.Request.Context(), nil, nil)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, challenges)
+		})
+
+		api.POST("/challenges", func(c *gin.Context) {
+			var input challenges.CreateChallengeInput
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+
+			challenge, err := challengeResolver.CreateChallenge(c.Request.Context(), input)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusCreated, challenge)
+		})
+	}
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
@@ -143,8 +200,12 @@ func (a *App) Start() error {
 	})
 
 	a.server = &http.Server{
-		Addr:    ":" + a.config.Port,
-		Handler: router,
+		Addr:           ":" + a.config.Port,
+		Handler:        router,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
 	a.logger.Info("starting server", zap.String("port", a.config.Port))
@@ -164,9 +225,13 @@ func (a *App) Start() error {
 	a.logger.Info("shutting down server...")
 
 	// Graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Shutdown event bus
+	a.eventBus.Shutdown()
+
+	// Shutdown HTTP server
 	if err := a.server.Shutdown(ctx); err != nil {
 		a.logger.Error("server forced to shutdown", zap.Error(err))
 		return err
@@ -174,78 +239,4 @@ func (a *App) Start() error {
 
 	a.logger.Info("server exited")
 	return nil
-}
-
-// Resolver - root resolver
-type Resolver struct {
-	users      *users.Resolver
-	challenges *challenges.Resolver
-}
-
-// Query resolver
-func (r *Resolver) Query() QueryResolver {
-	return &queryResolver{r}
-}
-
-// Mutation resolver
-func (r *Resolver) Mutation() MutationResolver {
-	return &mutationResolver{r}
-}
-
-// queryResolver - implementa QueryResolver
-type queryResolver struct{ *Resolver }
-
-func (r *queryResolver) User(ctx context.Context, id string) (*users.GraphQLUser, error) {
-	return r.users.User(ctx, id)
-}
-
-func (r *queryResolver) Users(ctx context.Context, limit *int, offset *int) ([]*users.GraphQLUser, error) {
-	return r.users.Users(ctx, limit, offset)
-}
-
-func (r *queryResolver) UserXPHistory(ctx context.Context, userID string) ([]*users.UserXP, error) {
-	return r.users.UserXPHistory(ctx, userID)
-}
-
-func (r *queryResolver) Challenge(ctx context.Context, id string) (*challenges.Challenge, error) {
-	return r.challenges.Challenge(ctx, id)
-}
-
-func (r *queryResolver) Challenges(ctx context.Context, limit *int, offset *int) ([]*challenges.Challenge, error) {
-	return r.challenges.Challenges(ctx, limit, offset)
-}
-
-func (r *queryResolver) ChallengeSubmissions(ctx context.Context, challengeID string) ([]*challenges.ChallengeSubmission, error) {
-	return r.challenges.ChallengeSubmissions(ctx, challengeID)
-}
-
-func (r *queryResolver) ChallengeVotes(ctx context.Context, submissionID string) ([]*challenges.ChallengeVote, error) {
-	return r.challenges.ChallengeVotes(ctx, submissionID)
-}
-
-// mutationResolver - implementa MutationResolver
-type mutationResolver struct{ *Resolver }
-
-func (r *mutationResolver) CreateUser(ctx context.Context, input users.CreateUserInput) (*users.GraphQLUser, error) {
-	return r.users.CreateUser(ctx, input)
-}
-
-func (r *mutationResolver) UpdateUser(ctx context.Context, id string, input users.UpdateUserInput) (*users.GraphQLUser, error) {
-	return r.users.UpdateUser(ctx, id, input)
-}
-
-func (r *mutationResolver) DeleteUser(ctx context.Context, id string) (bool, error) {
-	return r.users.DeleteUser(ctx, id)
-}
-
-func (r *mutationResolver) CreateChallenge(ctx context.Context, input challenges.CreateChallengeInput) (*challenges.Challenge, error) {
-	return r.challenges.CreateChallenge(ctx, input)
-}
-
-func (r *mutationResolver) SubmitChallenge(ctx context.Context, input challenges.SubmitChallengeInput) (*challenges.ChallengeSubmission, error) {
-	return r.challenges.SubmitChallenge(ctx, input)
-}
-
-func (r *mutationResolver) VoteChallenge(ctx context.Context, input challenges.VoteChallengeInput) (*challenges.ChallengeVote, error) {
-	return r.challenges.VoteChallenge(ctx, input)
 }

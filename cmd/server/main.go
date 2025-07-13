@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"ecommerce/internal/app"
+	"github.com/rafaelcoelhox/labbend/internal/app"
 )
 
 func main() {

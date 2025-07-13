@@ -1,9 +1,7 @@
 package health
-package health
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"gorm.io/gorm"
@@ -130,7 +128,7 @@ func NewMemoryChecker() *MemoryChecker {
 
 func (c *MemoryChecker) Check(ctx context.Context) *Check {
 	start := time.Now()
-	
+
 	check := &Check{
 		Name:      "memory",
 		Status:    StatusHealthy,
@@ -152,7 +150,7 @@ func NewEventBusChecker(eventBus interface{}) *EventBusChecker {
 
 func (c *EventBusChecker) Check(ctx context.Context) *Check {
 	start := time.Now()
-	
+
 	check := &Check{
 		Name:      "eventbus",
 		Status:    StatusHealthy,

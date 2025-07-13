@@ -35,19 +35,19 @@ func New() (Logger, error) {
 	config := zap.NewProductionConfig()
 	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
 
-	zapLogger, err := config.Build()
+	zapLog, err := config.Build()
 	if err != nil {
 		return nil, err
 	}
 
-	return &zapLogger{zap: zapLogger}, nil
+	return &zapLogger{zap: zapLog}, nil
 }
 
 func NewDevelopment() (Logger, error) {
-	zapLogger, err := zap.NewDevelopment()
+	zapLog, err := zap.NewDevelopment()
 	if err != nil {
 		return nil, err
 	}
 
-	return &zapLogger{zap: zapLogger}, nil
+	return &zapLogger{zap: zapLog}, nil
 }

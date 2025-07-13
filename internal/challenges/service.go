@@ -2,23 +2,18 @@ package challenges
 
 import (
 	"context"
+	"strconv"
 
 	"go.uber.org/zap"
 
-	"ecommerce/internal/core/errors"
-	"ecommerce/internal/core/logger"
+	"github.com/rafaelcoelhox/labbend/internal/core/errors"
+	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
+	"github.com/rafaelcoelhox/labbend/internal/core/logger"
 )
 
 // EventBus - interface para comunicação entre módulos
 type EventBus interface {
-	Publish(event Event)
-}
-
-// Event - evento básico
-type Event struct {
-	Type   string
-	Source string
-	Data   map[string]interface{}
+	Publish(event eventbus.Event)
 }
 
 // UserService - interface para comunicação com módulo de usuários
@@ -88,7 +83,7 @@ func (s *service) CreateChallenge(ctx context.Context, input CreateChallengeInpu
 	}
 
 	// Publish event
-	s.eventBus.Publish(Event{
+	s.eventBus.Publish(eventbus.Event{
 		Type:   "ChallengeCreated",
 		Source: "challenges",
 		Data: map[string]interface{}{
@@ -124,12 +119,18 @@ func (s *service) ListChallenges(ctx context.Context, limit, offset int) ([]*Cha
 // === SUBMISSION MANAGEMENT ===
 
 func (s *service) SubmitChallenge(ctx context.Context, userID uint, input SubmitChallengeInput) (*ChallengeSubmission, error) {
+	// Converter string para uint
+	challengeID, err := strconv.ParseUint(input.ChallengeID, 10, 32)
+	if err != nil {
+		return nil, errors.InvalidInput("invalid challenge ID")
+	}
+
 	s.logger.Info("submitting challenge",
 		zap.Uint("user_id", userID),
-		zap.Uint("challenge_id", input.ChallengeID))
+		zap.Uint("challenge_id", uint(challengeID)))
 
 	// Verificar se challenge existe
-	challenge, err := s.repo.GetChallengeByID(ctx, input.ChallengeID)
+	challenge, err := s.repo.GetChallengeByID(ctx, uint(challengeID))
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +140,7 @@ func (s *service) SubmitChallenge(ctx context.Context, userID uint, input Submit
 	}
 
 	// Verificar se usuário já submeteu
-	hasSubmitted, err := s.repo.HasUserSubmitted(ctx, userID, input.ChallengeID)
+	hasSubmitted, err := s.repo.HasUserSubmitted(ctx, userID, uint(challengeID))
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +154,7 @@ func (s *service) SubmitChallenge(ctx context.Context, userID uint, input Submit
 	}
 
 	submission := &ChallengeSubmission{
-		ChallengeID: input.ChallengeID,
+		ChallengeID: uint(challengeID),
 		UserID:      userID,
 		ProofURL:    input.ProofURL,
 		Status:      SubmissionStatusPending,
@@ -165,7 +166,7 @@ func (s *service) SubmitChallenge(ctx context.Context, userID uint, input Submit
 	}
 
 	// Publish event
-	s.eventBus.Publish(Event{
+	s.eventBus.Publish(eventbus.Event{
 		Type:   "ChallengeSubmitted",
 		Source: "challenges",
 		Data: map[string]interface{}{
@@ -187,13 +188,19 @@ func (s *service) GetSubmissionsByChallengeID(ctx context.Context, challengeID u
 // === VOTING SYSTEM ===
 
 func (s *service) VoteOnSubmission(ctx context.Context, userID uint, input VoteChallengeInput) (*ChallengeVote, error) {
+	// Converter string para uint
+	submissionID, err := strconv.ParseUint(input.SubmissionID, 10, 32)
+	if err != nil {
+		return nil, errors.InvalidInput("invalid submission ID")
+	}
+
 	s.logger.Info("processing vote",
 		zap.Uint("user_id", userID),
-		zap.Uint("submission_id", input.SubmissionID),
+		zap.Uint("submission_id", uint(submissionID)),
 		zap.Bool("approved", input.Approved))
 
 	// Verificar se submission existe
-	submission, err := s.repo.GetSubmissionByID(ctx, input.SubmissionID)
+	submission, err := s.repo.GetSubmissionByID(ctx, uint(submissionID))
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +210,7 @@ func (s *service) VoteOnSubmission(ctx context.Context, userID uint, input VoteC
 	}
 
 	// Verificar se usuário já votou
-	hasVoted, err := s.repo.HasUserVoted(ctx, userID, input.SubmissionID)
+	hasVoted, err := s.repo.HasUserVoted(ctx, userID, uint(submissionID))
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +224,7 @@ func (s *service) VoteOnSubmission(ctx context.Context, userID uint, input VoteC
 	}
 
 	// Criar voto
-	vote := NewChallengeVote(input.SubmissionID, userID, input.Approved, input.TimeCheck)
+	vote := NewChallengeVote(uint(submissionID), userID, input.Approved, input.TimeCheck)
 
 	if err := s.repo.CreateVote(ctx, vote); err != nil {
 		s.logger.Error("failed to create vote", zap.Error(err))
@@ -225,7 +232,7 @@ func (s *service) VoteOnSubmission(ctx context.Context, userID uint, input VoteC
 	}
 
 	// Publish event
-	s.eventBus.Publish(Event{
+	s.eventBus.Publish(eventbus.Event{
 		Type:   "ChallengeVoteAdded",
 		Source: "challenges",
 		Data: map[string]interface{}{
@@ -316,13 +323,13 @@ func (s *service) approveSubmission(ctx context.Context, submission *ChallengeSu
 		return
 	}
 
-	if err := s.userService.GiveUserXP(ctx, submission.UserID, "challenge", string(rune(submission.ChallengeID)), challenge.XPReward); err != nil {
+	if err := s.userService.GiveUserXP(ctx, submission.UserID, "challenge", strconv.Itoa(int(submission.ChallengeID)), challenge.XPReward); err != nil {
 		s.logger.Error("failed to give XP to user", zap.Error(err))
 		// Não retorna erro - XP é importante mas não crítico
 	}
 
 	// Publish event
-	s.eventBus.Publish(Event{
+	s.eventBus.Publish(eventbus.Event{
 		Type:   "ChallengeApproved",
 		Source: "challenges",
 		Data: map[string]interface{}{
@@ -350,7 +357,7 @@ func (s *service) rejectSubmission(ctx context.Context, submission *ChallengeSub
 	}
 
 	// Publish event
-	s.eventBus.Publish(Event{
+	s.eventBus.Publish(eventbus.Event{
 		Type:   "ChallengeRejected",
 		Source: "challenges",
 		Data: map[string]interface{}{

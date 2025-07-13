@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	"ecommerce/internal/core/logger"
+	"github.com/rafaelcoelhox/labbend/internal/core/logger"
 )
 
 // Resolver - GraphQL resolver
@@ -70,11 +70,13 @@ func (r *Resolver) CreateChallenge(ctx context.Context, input CreateChallengeInp
 }
 
 func (r *Resolver) SubmitChallenge(ctx context.Context, input SubmitChallengeInput) (*ChallengeSubmission, error) {
+	// TODO: Pegar userID do contexto de autenticação
 	userID := uint(1)
 	return r.service.SubmitChallenge(ctx, userID, input)
 }
 
 func (r *Resolver) VoteChallenge(ctx context.Context, input VoteChallengeInput) (*ChallengeVote, error) {
+	// TODO: Pegar userID do contexto de autenticação
 	userID := uint(1)
 	return r.service.VoteOnSubmission(ctx, userID, input)
 }

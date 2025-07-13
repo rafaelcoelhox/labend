@@ -54,14 +54,14 @@ type CreateChallengeInput struct {
 }
 
 type SubmitChallengeInput struct {
-	ChallengeID uint   `json:"challenge_id" validate:"required"`
-	ProofURL    string `json:"proof_url" validate:"required,url"`
+	ChallengeID string `json:"challengeID" validate:"required"`
+	ProofURL    string `json:"proofURL" validate:"required,url"`
 }
 
 type VoteChallengeInput struct {
-	SubmissionID uint `json:"submission_id" validate:"required"`
-	Approved     bool `json:"approved"`
-	TimeCheck    int  `json:"time_check" validate:"required,min=1"`
+	SubmissionID string `json:"submissionID" validate:"required"`
+	Approved     bool   `json:"approved"`
+	TimeCheck    int    `json:"timeCheck" validate:"required,min=1"`
 }
 
 func (Challenge) TableName() string {
