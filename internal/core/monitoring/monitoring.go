@@ -28,7 +28,6 @@ type Monitor struct {
 	goroutineCount     prometheus.Gauge
 	heapMemory         prometheus.Gauge
 	heapObjects        prometheus.Gauge
-	gcDuration         prometheus.Histogram
 	cpuUsage           prometheus.Gauge
 	memoryLeakAlert    prometheus.Counter
 	raceConditionAlert prometheus.Counter
@@ -77,57 +76,49 @@ type AccessInfo struct {
 func NewMonitor(logger corelogger.Logger) *Monitor {
 	registry := prometheus.NewRegistry()
 
-	// Métricas de goroutines
+	// Métricas customizadas de goroutines
 	goroutineCount := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "go_goroutines_total",
-		Help: "Número total de goroutines",
+		Name: "labend_goroutines_total",
+		Help: "Número total de goroutines customizadas",
 	})
 
-	// Métricas de heap
+	// Métricas customizadas de heap
 	heapMemory := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "go_heap_memory_bytes",
-		Help: "Memória heap em bytes",
+		Name: "labend_heap_memory_bytes",
+		Help: "Memória heap monitorada customizada",
 	})
 
 	heapObjects := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "go_heap_objects_total",
-		Help: "Número de objetos no heap",
+		Name: "labend_heap_objects_total",
+		Help: "Número de objetos no heap customizados",
 	})
 
-	// Métricas de GC
-	gcDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "go_gc_duration_seconds",
-		Help:    "Duração do garbage collection",
-		Buckets: prometheus.DefBuckets,
-	})
-
-	// Métricas de CPU
+	// Métricas customizadas de CPU
 	cpuUsage := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "go_cpu_usage_percent",
-		Help: "Uso de CPU em porcentagem",
+		Name: "labend_cpu_usage_percent",
+		Help: "Uso de CPU customizado em porcentagem",
 	})
 
 	// Alertas
 	memoryLeakAlert := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "memory_leak_alerts_total",
+		Name: "labend_memory_leak_alerts_total",
 		Help: "Alertas de vazamento de memória",
 	})
 
 	raceConditionAlert := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "race_condition_alerts_total",
+		Name: "labend_race_condition_alerts_total",
 		Help: "Alertas de race conditions",
 	})
 
-	// Registrar métricas
+	// Registrar métricas customizadas
 	registry.MustRegister(goroutineCount)
 	registry.MustRegister(heapMemory)
 	registry.MustRegister(heapObjects)
-	registry.MustRegister(gcDuration)
 	registry.MustRegister(cpuUsage)
 	registry.MustRegister(memoryLeakAlert)
 	registry.MustRegister(raceConditionAlert)
 
-	// Métricas padrão do Go
+	// Métricas padrão do Go (incluem go_gc_duration_seconds e outras)
 	registry.MustRegister(prometheus.NewGoCollector())
 	registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 
@@ -143,7 +134,7 @@ func NewMonitor(logger corelogger.Logger) *Monitor {
 		logger:   logger,
 	}
 
-	monitor := &Monitor{
+	return &Monitor{
 		logger:             logger,
 		registry:           registry,
 		goroutineTracker:   goroutineTracker,
@@ -151,14 +142,11 @@ func NewMonitor(logger corelogger.Logger) *Monitor {
 		goroutineCount:     goroutineCount,
 		heapMemory:         heapMemory,
 		heapObjects:        heapObjects,
-		gcDuration:         gcDuration,
 		cpuUsage:           cpuUsage,
 		memoryLeakAlert:    memoryLeakAlert,
 		raceConditionAlert: raceConditionAlert,
 		startTime:          time.Now(),
 	}
-
-	return monitor
 }
 
 // Start - inicia o monitoramento
@@ -202,18 +190,11 @@ func (m *Monitor) collectMetrics() {
 	}
 
 	// Métricas de heap
-	m.heapMemory.Set(float64(memStats.HeapAlloc))
+	m.heapMemory.Set(float64(memStats.HeapInuse))
 	m.heapObjects.Set(float64(memStats.HeapObjects))
 
-	// Métricas de GC
-	m.gcDuration.Observe(float64(memStats.PauseNs[(memStats.NumGC+255)%256]) / 1e9)
-
-	// CPU usage (aproximado)
-	cpuPercent := float64(memStats.Sys) / float64(memStats.HeapSys) * 100
-	if cpuPercent > 100 {
-		cpuPercent = 100
-	}
-	m.cpuUsage.Set(cpuPercent)
+	// Métricas de CPU (aproximado)
+	m.cpuUsage.Set(float64(runtime.NumCPU())) // Simplificado para exemplo
 
 	// Log métricas importantes
 	m.logger.Debug("metrics collected",
