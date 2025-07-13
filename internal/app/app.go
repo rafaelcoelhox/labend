@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-gonic/gin"
+	graphql "github.com/graph-gophers/graphql-go"
+	"github.com/graph-gophers/graphql-go/relay"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
@@ -156,8 +156,14 @@ func (a *App) Start(ctx context.Context) error {
 	userResolver := users.NewResolver(userService, a.logger)
 	challengeResolver := challenges.NewResolver(challengeService, a.logger)
 
-	// Setup GraphQL resolver
-	graphqlResolver := graph.NewResolver(userService, challengeService, a.logger)
+	// Setup GraphQL resolver para graph-gophers/graphql-go
+	graphqlResolver := graph.NewRootResolver(userService, challengeService, a.logger)
+
+	// Setup GraphQL schema
+	schema, err := graphql.ParseSchema(graph.Schema, graphqlResolver)
+	if err != nil {
+		return fmt.Errorf("failed to parse GraphQL schema: %w", err)
+	}
 
 	// Setup HTTP server
 	gin.SetMode(gin.ReleaseMode)
@@ -214,13 +220,66 @@ func (a *App) Start(ctx context.Context) error {
 		c.Next()
 	})
 
-	// GraphQL endpoint
-	schema := graph.NewExecutableSchema(graph.Config{Resolvers: graphqlResolver})
-	graphqlHandler := handler.NewDefaultServer(schema)
-	playgroundHandler := playground.Handler("GraphQL Playground", "/graphql")
+	// GraphQL endpoint usando graph-gophers/graphql-go
+	handler := &relay.Handler{Schema: schema}
 
-	router.POST("/graphql", gin.WrapH(graphqlHandler))
-	router.GET("/graphql", gin.WrapH(playgroundHandler))
+	router.POST("/graphql", func(c *gin.Context) {
+		handler.ServeHTTP(c.Writer, c.Request)
+	})
+
+	// GraphQL Playground (implementação simples)
+	router.GET("/graphql", func(c *gin.Context) {
+		c.Header("Content-Type", "text/html")
+		c.String(http.StatusOK, `<!DOCTYPE html>
+<html>
+<head>
+  <title>GraphQL Playground</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { color: #333; }
+    p { margin: 10px 0; }
+    .endpoint { background: #f5f5f5; padding: 10px; border-radius: 5px; margin: 10px 0; }
+    .code { background: #f5f5f5; padding: 10px; border-radius: 5px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>GraphQL API - LabEnd</h1>
+    <p>Este é o endpoint GraphQL da aplicação LabEnd.</p>
+    
+    <div class="endpoint">
+      <strong>Endpoint:</strong> POST /graphql
+    </div>
+    
+    <h2>Exemplo de Query</h2>
+    <div class="code">
+      query {
+        users(limit: 10) {
+          id
+          name
+          email
+          totalXP
+        }
+      }
+    </div>
+    
+    <h2>Exemplo de Mutation</h2>
+    <div class="code">
+      mutation {
+        createUser(input: {name: "João", email: "joao@exemplo.com"}) {
+          id
+          name
+          email
+        }
+      }
+    </div>
+    
+    <p>Use um cliente GraphQL como Postman ou curl para fazer requisições.</p>
+  </div>
+</body>
+</html>`)
+	})
 
 	// API routes
 	api := router.Group("/api")
