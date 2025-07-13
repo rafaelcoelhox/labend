@@ -1,0 +1,73 @@
+# Arquivos de desenvolvimento
+.git
+.gitignore
+README.md
+*.md
+
+# Arquivos de build
+bin/
+dist/
+build/
+
+# Arquivos de configuração local
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Docker files
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Arquivos de teste
+*_test.go
+**/*_test.go
+coverage.out
+test_coverage.html
+
+# Arquivos de documentação
+docs/
+*.md
+LICENSE
+
+# Arquivos de CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+fly.toml
+fly.staging.toml
+
+# Scripts e configurações
+scripts/
+monitoring/
+prometheus-config.yml
+run_stress_test.sh
+stress_load.go
+
+# Arquivos temporários
+*.tmp
+*.log
+*.swp
+*.swo
+*~
+
+# Arquivos de IDE
+.vscode/
+.idea/
+*.iml
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos de node (se houver)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Arquivos de cache
+.cache/
+.npm/
+.yarn/ 
