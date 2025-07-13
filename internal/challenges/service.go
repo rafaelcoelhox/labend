@@ -2,6 +2,8 @@ package challenges
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"strconv"
 
 	"go.uber.org/zap"
@@ -340,8 +342,15 @@ func (s *service) approveSubmission(ctx context.Context, submission *ChallengeSu
 		}
 
 		// 3. Conceder XP ao usuário (dentro da mesma transação)
+		// Validar se ChallengeID pode ser convertido com segurança
+		if submission.ChallengeID > math.MaxInt32 {
+			s.logger.Error("challenge ID too large for safe conversion", zap.Uint("challengeID", submission.ChallengeID))
+			return fmt.Errorf("challenge ID too large for safe conversion")
+		}
+
+		challengeIDStr := strconv.Itoa(int(submission.ChallengeID)) // #nosec G115 - validated above
 		if err := s.userService.GiveUserXPWithTx(ctx, tx, submission.UserID, "challenge",
-			strconv.Itoa(int(submission.ChallengeID)), challenge.XPReward); err != nil {
+			challengeIDStr, challenge.XPReward); err != nil {
 			s.logger.Error("failed to give XP to user", zap.Error(err))
 			return err
 		}

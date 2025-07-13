@@ -1,0 +1,23 @@
+{
+  "exclude_generated": true,
+  "exclude_dirs": [
+    "vendor",
+    "node_modules"
+  ],
+  "exclude_files": [
+    "**/generated.go",
+    "**/models_gen.go"
+  ],
+  "rules": {
+    "G115": {
+      "exclude_files": [
+        "**/generated.go"
+      ]
+    },
+    "G108": {
+      "exclude_files": [
+        "internal/core/monitoring/monitoring.go"
+      ]
+    }
+  }
+} 

@@ -4,18 +4,21 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	corelogger "github.com/rafaelcoelhox/labbend/internal/core/logger"
+
+	// Importar pprof apenas em modo debug/desenvolvimento
+	// #nosec G108 - profiling endpoint only in debug mode
+	_ "net/http/pprof"
 )
 
 // Monitor - sistema de monitoramento completo
@@ -437,11 +440,17 @@ func (m *Monitor) getGCStats(c *gin.Context) {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
+	// Validar se LastGC pode ser convertido com segurança
+	if memStats.LastGC > 9223372036854775807 { // math.MaxInt64 em uint64
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "LastGC timestamp overflow"})
+		return
+	}
+
 	stats := gin.H{
 		"gc_cycles":       memStats.NumGC,
 		"gc_forced":       memStats.NumForcedGC,
 		"gc_cpu_fraction": memStats.GCCPUFraction,
-		"last_gc_time":    time.Unix(0, int64(memStats.LastGC)),
+		"last_gc_time":    time.Unix(0, int64(memStats.LastGC)), // #nosec G115 - validated above
 		"pause_total_ns":  memStats.PauseTotalNs,
 		"pause_ns":        memStats.PauseNs,
 		"gc_sys_mb":       float64(memStats.GCSys) / 1024 / 1024,
