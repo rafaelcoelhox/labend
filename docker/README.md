@@ -108,7 +108,7 @@ Remove volumes e imagens não utilizadas.
 Copie o arquivo `env.example` para `.env` e configure as variáveis:
 
 ```bash
-cp ../env.example .env
+cp ../configs/env.example .env
 ```
 
 ## 🔄 Migração
