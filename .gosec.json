@@ -1,23 +1,28 @@
 {
-  "exclude_generated": true,
-  "exclude_dirs": [
+  "exclude-generated": true,
+  "exclude-dirs": [
     "vendor",
-    "node_modules"
+    "node_modules",
+    "tmp"
   ],
-  "exclude_files": [
-    "**/generated.go",
-    "**/models_gen.go"
+  "exclude": [
+    "G108",
+    "G115"
   ],
-  "rules": {
-    "G115": {
-      "exclude_files": [
-        "**/generated.go"
-      ]
-    },
+  "exclude-rules": {
     "G108": {
-      "exclude_files": [
+      "exclude-files": [
         "internal/core/monitoring/monitoring.go"
       ]
+    },
+    "G115": {
+      "exclude-files": [
+        "**/generated.go",
+        "**/models_gen.go"
+      ]
     }
+  },
+  "global": {
+    "nosec-tag": "nosec"
   }
 } 

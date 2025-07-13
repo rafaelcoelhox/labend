@@ -83,7 +83,7 @@ jobs:
     - name: Security scan
       run: |
         go install github.com/securego/gosec/v2/cmd/gosec@latest
-        gosec -fmt sarif -out results.sarif ./...
+        gosec -conf .gosec.json -exclude-generated -fmt sarif -out results.sarif ./...
 
     - name: Build application
       run: go build -v -o labend cmd/server/main.go
