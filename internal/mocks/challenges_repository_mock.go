@@ -10,6 +10,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	challenges "github.com/rafaelcoelhox/labbend/internal/challenges"
+	gorm "gorm.io/gorm"
 )
 
 // MockChallengesRepository is a mock of Repository interface.
@@ -64,6 +65,20 @@ func (mr *MockChallengesRepositoryMockRecorder) CreateChallenge(arg0, arg1 inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateChallenge", reflect.TypeOf((*MockChallengesRepository)(nil).CreateChallenge), arg0, arg1)
 }
 
+// CreateChallengeWithTx mocks base method.
+func (m *MockChallengesRepository) CreateChallengeWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 *challenges.Challenge) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateChallengeWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateChallengeWithTx indicates an expected call of CreateChallengeWithTx.
+func (mr *MockChallengesRepositoryMockRecorder) CreateChallengeWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateChallengeWithTx", reflect.TypeOf((*MockChallengesRepository)(nil).CreateChallengeWithTx), arg0, arg1, arg2)
+}
+
 // CreateSubmission mocks base method.
 func (m *MockChallengesRepository) CreateSubmission(arg0 context.Context, arg1 *challenges.ChallengeSubmission) error {
 	m.ctrl.T.Helper()
@@ -78,6 +93,20 @@ func (mr *MockChallengesRepositoryMockRecorder) CreateSubmission(arg0, arg1 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSubmission", reflect.TypeOf((*MockChallengesRepository)(nil).CreateSubmission), arg0, arg1)
 }
 
+// CreateSubmissionWithTx mocks base method.
+func (m *MockChallengesRepository) CreateSubmissionWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 *challenges.ChallengeSubmission) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateSubmissionWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateSubmissionWithTx indicates an expected call of CreateSubmissionWithTx.
+func (mr *MockChallengesRepositoryMockRecorder) CreateSubmissionWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSubmissionWithTx", reflect.TypeOf((*MockChallengesRepository)(nil).CreateSubmissionWithTx), arg0, arg1, arg2)
+}
+
 // CreateVote mocks base method.
 func (m *MockChallengesRepository) CreateVote(arg0 context.Context, arg1 *challenges.ChallengeVote) error {
 	m.ctrl.T.Helper()
@@ -90,6 +119,20 @@ func (m *MockChallengesRepository) CreateVote(arg0 context.Context, arg1 *challe
 func (mr *MockChallengesRepositoryMockRecorder) CreateVote(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVote", reflect.TypeOf((*MockChallengesRepository)(nil).CreateVote), arg0, arg1)
+}
+
+// CreateVoteWithTx mocks base method.
+func (m *MockChallengesRepository) CreateVoteWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 *challenges.ChallengeVote) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateVoteWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateVoteWithTx indicates an expected call of CreateVoteWithTx.
+func (mr *MockChallengesRepositoryMockRecorder) CreateVoteWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVoteWithTx", reflect.TypeOf((*MockChallengesRepository)(nil).CreateVoteWithTx), arg0, arg1, arg2)
 }
 
 // GetChallengeByID mocks base method.
@@ -107,6 +150,21 @@ func (mr *MockChallengesRepositoryMockRecorder) GetChallengeByID(arg0, arg1 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChallengeByID", reflect.TypeOf((*MockChallengesRepository)(nil).GetChallengeByID), arg0, arg1)
 }
 
+// GetChallengeByIDWithTx mocks base method.
+func (m *MockChallengesRepository) GetChallengeByIDWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 uint) (*challenges.Challenge, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChallengeByIDWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*challenges.Challenge)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChallengeByIDWithTx indicates an expected call of GetChallengeByIDWithTx.
+func (mr *MockChallengesRepositoryMockRecorder) GetChallengeByIDWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChallengeByIDWithTx", reflect.TypeOf((*MockChallengesRepository)(nil).GetChallengeByIDWithTx), arg0, arg1, arg2)
+}
+
 // GetSubmissionByID mocks base method.
 func (m *MockChallengesRepository) GetSubmissionByID(arg0 context.Context, arg1 uint) (*challenges.ChallengeSubmission, error) {
 	m.ctrl.T.Helper()
@@ -120,6 +178,21 @@ func (m *MockChallengesRepository) GetSubmissionByID(arg0 context.Context, arg1 
 func (mr *MockChallengesRepositoryMockRecorder) GetSubmissionByID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubmissionByID", reflect.TypeOf((*MockChallengesRepository)(nil).GetSubmissionByID), arg0, arg1)
+}
+
+// GetSubmissionByIDWithTx mocks base method.
+func (m *MockChallengesRepository) GetSubmissionByIDWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 uint) (*challenges.ChallengeSubmission, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSubmissionByIDWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*challenges.ChallengeSubmission)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSubmissionByIDWithTx indicates an expected call of GetSubmissionByIDWithTx.
+func (mr *MockChallengesRepositoryMockRecorder) GetSubmissionByIDWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubmissionByIDWithTx", reflect.TypeOf((*MockChallengesRepository)(nil).GetSubmissionByIDWithTx), arg0, arg1, arg2)
 }
 
 // GetSubmissionsByChallengeID mocks base method.
@@ -209,4 +282,18 @@ func (m *MockChallengesRepository) UpdateSubmission(arg0 context.Context, arg1 *
 func (mr *MockChallengesRepositoryMockRecorder) UpdateSubmission(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSubmission", reflect.TypeOf((*MockChallengesRepository)(nil).UpdateSubmission), arg0, arg1)
+}
+
+// UpdateSubmissionWithTx mocks base method.
+func (m *MockChallengesRepository) UpdateSubmissionWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 *challenges.ChallengeSubmission) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSubmissionWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSubmissionWithTx indicates an expected call of UpdateSubmissionWithTx.
+func (mr *MockChallengesRepositoryMockRecorder) UpdateSubmissionWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSubmissionWithTx", reflect.TypeOf((*MockChallengesRepository)(nil).UpdateSubmissionWithTx), arg0, arg1, arg2)
 }

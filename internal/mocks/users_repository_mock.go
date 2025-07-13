@@ -10,6 +10,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	users "github.com/rafaelcoelhox/labbend/internal/users"
+	gorm "gorm.io/gorm"
 )
 
 // MockUsersRepository is a mock of Repository interface.
@@ -63,6 +64,34 @@ func (mr *MockUsersRepositoryMockRecorder) CreateUserXP(arg0, arg1 interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUserXP", reflect.TypeOf((*MockUsersRepository)(nil).CreateUserXP), arg0, arg1)
 }
 
+// CreateUserXPWithTx mocks base method.
+func (m *MockUsersRepository) CreateUserXPWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 *users.UserXP) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateUserXPWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateUserXPWithTx indicates an expected call of CreateUserXPWithTx.
+func (mr *MockUsersRepositoryMockRecorder) CreateUserXPWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUserXPWithTx", reflect.TypeOf((*MockUsersRepository)(nil).CreateUserXPWithTx), arg0, arg1, arg2)
+}
+
+// CreateWithTx mocks base method.
+func (m *MockUsersRepository) CreateWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 *users.User) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateWithTx indicates an expected call of CreateWithTx.
+func (mr *MockUsersRepositoryMockRecorder) CreateWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateWithTx", reflect.TypeOf((*MockUsersRepository)(nil).CreateWithTx), arg0, arg1, arg2)
+}
+
 // Delete mocks base method.
 func (m *MockUsersRepository) Delete(arg0 context.Context, arg1 uint) error {
 	m.ctrl.T.Helper()
@@ -75,6 +104,20 @@ func (m *MockUsersRepository) Delete(arg0 context.Context, arg1 uint) error {
 func (mr *MockUsersRepositoryMockRecorder) Delete(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockUsersRepository)(nil).Delete), arg0, arg1)
+}
+
+// DeleteWithTx mocks base method.
+func (m *MockUsersRepository) DeleteWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWithTx indicates an expected call of DeleteWithTx.
+func (mr *MockUsersRepositoryMockRecorder) DeleteWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWithTx", reflect.TypeOf((*MockUsersRepository)(nil).DeleteWithTx), arg0, arg1, arg2)
 }
 
 // GetByEmail mocks base method.
@@ -105,6 +148,21 @@ func (m *MockUsersRepository) GetByID(arg0 context.Context, arg1 uint) (*users.U
 func (mr *MockUsersRepositoryMockRecorder) GetByID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockUsersRepository)(nil).GetByID), arg0, arg1)
+}
+
+// GetByIDWithTx mocks base method.
+func (m *MockUsersRepository) GetByIDWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 uint) (*users.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByIDWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*users.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByIDWithTx indicates an expected call of GetByIDWithTx.
+func (mr *MockUsersRepositoryMockRecorder) GetByIDWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDWithTx", reflect.TypeOf((*MockUsersRepository)(nil).GetByIDWithTx), arg0, arg1, arg2)
 }
 
 // GetMultipleUsersXP mocks base method.
@@ -182,6 +240,20 @@ func (mr *MockUsersRepositoryMockRecorder) List(arg0, arg1, arg2 interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockUsersRepository)(nil).List), arg0, arg1, arg2)
 }
 
+// RemoveUserXPWithTx mocks base method.
+func (m *MockUsersRepository) RemoveUserXPWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 uint, arg3, arg4 string, arg5 int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveUserXPWithTx", arg0, arg1, arg2, arg3, arg4, arg5)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveUserXPWithTx indicates an expected call of RemoveUserXPWithTx.
+func (mr *MockUsersRepositoryMockRecorder) RemoveUserXPWithTx(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUserXPWithTx", reflect.TypeOf((*MockUsersRepository)(nil).RemoveUserXPWithTx), arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
 // Update mocks base method.
 func (m *MockUsersRepository) Update(arg0 context.Context, arg1 *users.User) error {
 	m.ctrl.T.Helper()
@@ -194,4 +266,18 @@ func (m *MockUsersRepository) Update(arg0 context.Context, arg1 *users.User) err
 func (mr *MockUsersRepositoryMockRecorder) Update(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockUsersRepository)(nil).Update), arg0, arg1)
+}
+
+// UpdateWithTx mocks base method.
+func (m *MockUsersRepository) UpdateWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 *users.User) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWithTx indicates an expected call of UpdateWithTx.
+func (mr *MockUsersRepositoryMockRecorder) UpdateWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWithTx", reflect.TypeOf((*MockUsersRepository)(nil).UpdateWithTx), arg0, arg1, arg2)
 }

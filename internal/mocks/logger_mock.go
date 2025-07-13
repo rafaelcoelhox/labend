@@ -6,8 +6,10 @@ package mocks
 
 import (
 	reflect "reflect"
+	time "time"
 
 	gomock "github.com/golang/mock/gomock"
+	logger "github.com/rafaelcoelhox/labbend/internal/core/logger"
 	zapcore "go.uber.org/zap/zapcore"
 )
 
@@ -32,6 +34,23 @@ func NewMockLogger(ctrl *gomock.Controller) *MockLogger {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockLogger) EXPECT() *MockLoggerMockRecorder {
 	return m.recorder
+}
+
+// Database mocks base method.
+func (m *MockLogger) Database(arg0, arg1 string, arg2 time.Duration, arg3 ...zapcore.Field) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1, arg2}
+	for _, a := range arg3 {
+		varargs = append(varargs, a)
+	}
+	m.ctrl.Call(m, "Database", varargs...)
+}
+
+// Database indicates an expected call of Database.
+func (mr *MockLoggerMockRecorder) Database(arg0, arg1, arg2 interface{}, arg3 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1, arg2}, arg3...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Database", reflect.TypeOf((*MockLogger)(nil).Database), varargs...)
 }
 
 // Debug mocks base method.
@@ -68,6 +87,57 @@ func (mr *MockLoggerMockRecorder) Error(arg0 interface{}, arg1 ...interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Error", reflect.TypeOf((*MockLogger)(nil).Error), varargs...)
 }
 
+// Event mocks base method.
+func (m *MockLogger) Event(arg0, arg1 string, arg2 ...zapcore.Field) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	m.ctrl.Call(m, "Event", varargs...)
+}
+
+// Event indicates an expected call of Event.
+func (mr *MockLoggerMockRecorder) Event(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Event", reflect.TypeOf((*MockLogger)(nil).Event), varargs...)
+}
+
+// Fatal mocks base method.
+func (m *MockLogger) Fatal(arg0 string, arg1 ...zapcore.Field) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0}
+	for _, a := range arg1 {
+		varargs = append(varargs, a)
+	}
+	m.ctrl.Call(m, "Fatal", varargs...)
+}
+
+// Fatal indicates an expected call of Fatal.
+func (mr *MockLoggerMockRecorder) Fatal(arg0 interface{}, arg1 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0}, arg1...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fatal", reflect.TypeOf((*MockLogger)(nil).Fatal), varargs...)
+}
+
+// HTTP mocks base method.
+func (m *MockLogger) HTTP(arg0, arg1 string, arg2 int, arg3 time.Duration, arg4 ...zapcore.Field) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1, arg2, arg3}
+	for _, a := range arg4 {
+		varargs = append(varargs, a)
+	}
+	m.ctrl.Call(m, "HTTP", varargs...)
+}
+
+// HTTP indicates an expected call of HTTP.
+func (mr *MockLoggerMockRecorder) HTTP(arg0, arg1, arg2, arg3 interface{}, arg4 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1, arg2, arg3}, arg4...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HTTP", reflect.TypeOf((*MockLogger)(nil).HTTP), varargs...)
+}
+
 // Info mocks base method.
 func (m *MockLogger) Info(arg0 string, arg1 ...zapcore.Field) {
 	m.ctrl.T.Helper()
@@ -85,6 +155,37 @@ func (mr *MockLoggerMockRecorder) Info(arg0 interface{}, arg1 ...interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Info", reflect.TypeOf((*MockLogger)(nil).Info), varargs...)
 }
 
+// Performance mocks base method.
+func (m *MockLogger) Performance(arg0 string, arg1 time.Duration, arg2 ...zapcore.Field) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	m.ctrl.Call(m, "Performance", varargs...)
+}
+
+// Performance indicates an expected call of Performance.
+func (mr *MockLoggerMockRecorder) Performance(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Performance", reflect.TypeOf((*MockLogger)(nil).Performance), varargs...)
+}
+
+// Sync mocks base method.
+func (m *MockLogger) Sync() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Sync")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Sync indicates an expected call of Sync.
+func (mr *MockLoggerMockRecorder) Sync() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sync", reflect.TypeOf((*MockLogger)(nil).Sync))
+}
+
 // Warn mocks base method.
 func (m *MockLogger) Warn(arg0 string, arg1 ...zapcore.Field) {
 	m.ctrl.T.Helper()
@@ -100,4 +201,50 @@ func (mr *MockLoggerMockRecorder) Warn(arg0 interface{}, arg1 ...interface{}) *g
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0}, arg1...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Warn", reflect.TypeOf((*MockLogger)(nil).Warn), varargs...)
+}
+
+// WithFields mocks base method.
+func (m *MockLogger) WithFields(arg0 ...zapcore.Field) logger.Logger {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{}
+	for _, a := range arg0 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "WithFields", varargs...)
+	ret0, _ := ret[0].(logger.Logger)
+	return ret0
+}
+
+// WithFields indicates an expected call of WithFields.
+func (mr *MockLoggerMockRecorder) WithFields(arg0 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithFields", reflect.TypeOf((*MockLogger)(nil).WithFields), arg0...)
+}
+
+// WithRequestID mocks base method.
+func (m *MockLogger) WithRequestID(arg0 string) logger.Logger {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WithRequestID", arg0)
+	ret0, _ := ret[0].(logger.Logger)
+	return ret0
+}
+
+// WithRequestID indicates an expected call of WithRequestID.
+func (mr *MockLoggerMockRecorder) WithRequestID(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithRequestID", reflect.TypeOf((*MockLogger)(nil).WithRequestID), arg0)
+}
+
+// WithUserID mocks base method.
+func (m *MockLogger) WithUserID(arg0 string) logger.Logger {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WithUserID", arg0)
+	ret0, _ := ret[0].(logger.Logger)
+	return ret0
+}
+
+// WithUserID indicates an expected call of WithUserID.
+func (mr *MockLoggerMockRecorder) WithUserID(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithUserID", reflect.TypeOf((*MockLogger)(nil).WithUserID), arg0)
 }

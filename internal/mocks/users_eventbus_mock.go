@@ -5,10 +5,12 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
 	eventbus "github.com/rafaelcoelhox/labbend/internal/core/eventbus"
+	gorm "gorm.io/gorm"
 )
 
 // MockUsersEventBus is a mock of EventBus interface.
@@ -44,4 +46,18 @@ func (m *MockUsersEventBus) Publish(arg0 eventbus.Event) {
 func (mr *MockUsersEventBusMockRecorder) Publish(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Publish", reflect.TypeOf((*MockUsersEventBus)(nil).Publish), arg0)
+}
+
+// PublishWithTx mocks base method.
+func (m *MockUsersEventBus) PublishWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 eventbus.Event) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PublishWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PublishWithTx indicates an expected call of PublishWithTx.
+func (mr *MockUsersEventBusMockRecorder) PublishWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublishWithTx", reflect.TypeOf((*MockUsersEventBus)(nil).PublishWithTx), arg0, arg1, arg2)
 }

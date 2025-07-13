@@ -10,6 +10,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	users "github.com/rafaelcoelhox/labbend/internal/users"
+	gorm "gorm.io/gorm"
 )
 
 // MockUsersService is a mock of Service interface.
@@ -138,6 +139,20 @@ func (mr *MockUsersServiceMockRecorder) GiveUserXP(arg0, arg1, arg2, arg3, arg4 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GiveUserXP", reflect.TypeOf((*MockUsersService)(nil).GiveUserXP), arg0, arg1, arg2, arg3, arg4)
 }
 
+// GiveUserXPWithTx mocks base method.
+func (m *MockUsersService) GiveUserXPWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 uint, arg3, arg4 string, arg5 int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GiveUserXPWithTx", arg0, arg1, arg2, arg3, arg4, arg5)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GiveUserXPWithTx indicates an expected call of GiveUserXPWithTx.
+func (mr *MockUsersServiceMockRecorder) GiveUserXPWithTx(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GiveUserXPWithTx", reflect.TypeOf((*MockUsersService)(nil).GiveUserXPWithTx), arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
 // ListUsers mocks base method.
 func (m *MockUsersService) ListUsers(arg0 context.Context, arg1, arg2 int) ([]*users.User, error) {
 	m.ctrl.T.Helper()
@@ -166,6 +181,34 @@ func (m *MockUsersService) ListUsersWithXP(arg0 context.Context, arg1, arg2 int)
 func (mr *MockUsersServiceMockRecorder) ListUsersWithXP(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUsersWithXP", reflect.TypeOf((*MockUsersService)(nil).ListUsersWithXP), arg0, arg1, arg2)
+}
+
+// RemoveUserXP mocks base method.
+func (m *MockUsersService) RemoveUserXP(arg0 context.Context, arg1 uint, arg2, arg3 string, arg4 int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveUserXP", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveUserXP indicates an expected call of RemoveUserXP.
+func (mr *MockUsersServiceMockRecorder) RemoveUserXP(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUserXP", reflect.TypeOf((*MockUsersService)(nil).RemoveUserXP), arg0, arg1, arg2, arg3, arg4)
+}
+
+// RemoveUserXPWithTx mocks base method.
+func (m *MockUsersService) RemoveUserXPWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 uint, arg3, arg4 string, arg5 int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveUserXPWithTx", arg0, arg1, arg2, arg3, arg4, arg5)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveUserXPWithTx indicates an expected call of RemoveUserXPWithTx.
+func (mr *MockUsersServiceMockRecorder) RemoveUserXPWithTx(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUserXPWithTx", reflect.TypeOf((*MockUsersService)(nil).RemoveUserXPWithTx), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
 // UpdateUser mocks base method.

@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
+	"github.com/rafaelcoelhox/labbend/internal/core/database"
 	"github.com/rafaelcoelhox/labbend/internal/mocks"
 	"github.com/rafaelcoelhox/labbend/internal/users"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 func TestUserService_WithGomock(t *testing.T) {
@@ -20,41 +21,35 @@ func TestUserService_WithGomock(t *testing.T) {
 	mockLogger := mocks.NewMockLogger(ctrl)
 	mockEventBus := mocks.NewMockUsersEventBus(ctrl)
 
+	// Criar implementação real para TxManager (para testes)
+	// Como é um struct, vamos usar implementação real ou nil em testes
+	var db *gorm.DB // nil para testes unitários
+	txManager := database.NewTxManager(db)
+
 	// Verificar que os mocks foram criados com sucesso
 	assert.NotNil(t, mockRepo)
 	assert.NotNil(t, mockLogger)
 	assert.NotNil(t, mockEventBus)
 
-	service := users.NewService(mockRepo, mockLogger, mockEventBus)
+	service := users.NewService(mockRepo, mockLogger, mockEventBus, txManager)
 
 	// Exemplo de configuração de expectativas
 	mockRepo.EXPECT().
-		GetByEmail(gomock.Any(), "test@example.com").
+		GetByID(gomock.Any(), uint(1)).
 		Return(nil, nil).
 		Times(1)
 
 	mockLogger.EXPECT().
 		Info(gomock.Any(), gomock.Any()).
-		Times(1)
+		AnyTimes()
 
-	event := eventbus.Event{
-		Type:   "test",
-		Source: "test",
-		Data:   map[string]interface{}{"test": "data"},
-	}
+	// Exemplo de chamada
+	ctx := context.Background()
+	result, err := service.GetUser(ctx, 1)
 
-	mockEventBus.EXPECT().
-		Publish(gomock.Any()).
-		Times(1)
+	// Verificações básicas
+	assert.NoError(t, err)
+	assert.Nil(t, result)
 
-	// Chamar métodos para verificar que as expectativas são atendidas
-	mockRepo.GetByEmail(context.Background(), "test@example.com")
-	mockLogger.Info("Test message")
-	mockEventBus.Publish(event)
-
-	// Verificar se o service foi criado corretamente
-	assert.NotNil(t, service)
-
-	// O teste passa se todas as expectativas foram atendidas
-	t.Log("✅ Mocks gerados pelo gomock funcionam corretamente")
+	t.Log("✅ Mocks gerados pelo gomock funcionam corretamente para users")
 }

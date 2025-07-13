@@ -6,8 +6,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/rafaelcoelhox/labbend/internal/challenges"
+	"github.com/rafaelcoelhox/labbend/internal/core/database"
+	"github.com/rafaelcoelhox/labbend/internal/core/logger"
+	"github.com/rafaelcoelhox/labbend/internal/core/saga"
 	"github.com/rafaelcoelhox/labbend/internal/mocks"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 func TestChallengeService_WithGomock(t *testing.T) {
@@ -20,13 +24,20 @@ func TestChallengeService_WithGomock(t *testing.T) {
 	mockLogger := mocks.NewMockLogger(ctrl)
 	mockEventBus := mocks.NewMockChallengesEventBus(ctrl)
 
+	// Criar implementações reais para TxManager e SagaManager (para testes)
+	// Como são structs, vamos usar implementações reais ou nil em testes
+	var db *gorm.DB // nil para testes unitários
+	txManager := database.NewTxManager(db)
+	testLogger, _ := logger.New()
+	sagaManager := saga.NewSagaManager(testLogger)
+
 	// Verificar que os mocks foram criados com sucesso
 	assert.NotNil(t, mockRepo)
 	assert.NotNil(t, mockUserService)
 	assert.NotNil(t, mockLogger)
 	assert.NotNil(t, mockEventBus)
 
-	service := challenges.NewService(mockRepo, mockUserService, mockLogger, mockEventBus)
+	service := challenges.NewService(mockRepo, mockUserService, mockLogger, mockEventBus, txManager, sagaManager)
 
 	input := challenges.CreateChallengeInput{
 		Title:       "Test Challenge",
