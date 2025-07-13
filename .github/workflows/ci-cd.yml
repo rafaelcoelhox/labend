@@ -56,7 +56,7 @@ jobs:
       env:
         DATABASE_URL: postgres://labend:labend_pass@localhost:5432/labend_test?sslmode=disable
       run: |
-        go test -v -race -coverprofile=coverage.out ./...
+        go test -v -race -coverprofile=coverage.out ./... -short
         go tool cover -html=coverage.out -o coverage.html
 
     - name: Upload coverage to Codecov

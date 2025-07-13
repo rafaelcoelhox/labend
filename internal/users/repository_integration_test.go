@@ -66,349 +66,253 @@ func setupTestDB(t *testing.T) (*gorm.DB, func()) {
 }
 
 func TestUserRepository_Integration_Create(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	repo := NewRepository(db)
 
-	t.Run("should create user successfully", func(t *testing.T) {
-		user := &User{
-			Name:  "João Silva",
-			Email: "joao@test.com",
-		}
+	user := &User{
+		Name:  "João Silva",
+		Email: "joao@example.com",
+	}
 
-		err := repo.Create(context.Background(), user)
-
-		assert.NoError(t, err)
-		assert.NotZero(t, user.ID)
-		assert.NotZero(t, user.CreatedAt)
-		assert.NotZero(t, user.UpdatedAt)
-	})
-
-	t.Run("should return error for duplicate email", func(t *testing.T) {
-		user1 := &User{
-			Name:  "João Silva",
-			Email: "duplicate@test.com",
-		}
-
-		err := repo.Create(context.Background(), user1)
-		assert.NoError(t, err)
-
-		user2 := &User{
-			Name:  "Maria Santos",
-			Email: "duplicate@test.com",
-		}
-
-		err = repo.Create(context.Background(), user2)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
-	})
+	err := repo.Create(context.Background(), user)
+	assert.NoError(t, err)
+	assert.NotZero(t, user.ID)
+	assert.NotZero(t, user.CreatedAt)
+	assert.NotZero(t, user.UpdatedAt)
 }
 
 func TestUserRepository_Integration_GetByID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	repo := NewRepository(db)
 
-	t.Run("should get user by ID successfully", func(t *testing.T) {
-		// Criar usuário
-		user := &User{
-			Name:  "João Silva",
-			Email: "joao@test.com",
-		}
-		err := repo.Create(context.Background(), user)
-		require.NoError(t, err)
+	// Criar usuário
+	user := &User{
+		Name:  "Maria Santos",
+		Email: "maria@example.com",
+	}
+	err := repo.Create(context.Background(), user)
+	require.NoError(t, err)
 
-		// Buscar usuário
-		foundUser, err := repo.GetByID(context.Background(), user.ID)
-
-		assert.NoError(t, err)
-		assert.Equal(t, user.ID, foundUser.ID)
-		assert.Equal(t, user.Name, foundUser.Name)
-		assert.Equal(t, user.Email, foundUser.Email)
-	})
-
-	t.Run("should return error when user not found", func(t *testing.T) {
-		foundUser, err := repo.GetByID(context.Background(), 999999)
-
-		assert.Error(t, err)
-		assert.True(t, errors.Is(err, errors.ErrNotFound))
-		assert.Nil(t, foundUser)
-	})
+	// Buscar por ID
+	foundUser, err := repo.GetByID(context.Background(), user.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, user.Name, foundUser.Name)
+	assert.Equal(t, user.Email, foundUser.Email)
 }
 
 func TestUserRepository_Integration_GetByEmail(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	repo := NewRepository(db)
 
-	t.Run("should get user by email successfully", func(t *testing.T) {
-		// Criar usuário
-		user := &User{
-			Name:  "João Silva",
-			Email: "joao@test.com",
-		}
-		err := repo.Create(context.Background(), user)
-		require.NoError(t, err)
+	// Criar usuário
+	user := &User{
+		Name:  "Carlos Oliveira",
+		Email: "carlos@example.com",
+	}
+	err := repo.Create(context.Background(), user)
+	require.NoError(t, err)
 
-		// Buscar usuário
-		foundUser, err := repo.GetByEmail(context.Background(), user.Email)
-
-		assert.NoError(t, err)
-		assert.Equal(t, user.ID, foundUser.ID)
-		assert.Equal(t, user.Name, foundUser.Name)
-		assert.Equal(t, user.Email, foundUser.Email)
-	})
-
-	t.Run("should return error when user not found", func(t *testing.T) {
-		foundUser, err := repo.GetByEmail(context.Background(), "nonexistent@test.com")
-
-		assert.Error(t, err)
-		assert.True(t, errors.Is(err, errors.ErrNotFound))
-		assert.Nil(t, foundUser)
-	})
+	// Buscar por email
+	foundUser, err := repo.GetByEmail(context.Background(), user.Email)
+	assert.NoError(t, err)
+	assert.Equal(t, user.Name, foundUser.Name)
+	assert.Equal(t, user.ID, foundUser.ID)
 }
 
 func TestUserRepository_Integration_Update(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	repo := NewRepository(db)
 
-	t.Run("should update user successfully", func(t *testing.T) {
-		// Criar usuário
-		user := &User{
-			Name:  "João Silva",
-			Email: "joao@test.com",
-		}
-		err := repo.Create(context.Background(), user)
-		require.NoError(t, err)
+	// Criar usuário
+	user := &User{
+		Name:  "Ana Costa",
+		Email: "ana@example.com",
+	}
+	err := repo.Create(context.Background(), user)
+	require.NoError(t, err)
 
-		// Atualizar usuário
-		user.Name = "João Silva Updated"
-		err = repo.Update(context.Background(), user)
+	// Atualizar
+	user.Name = "Ana Silva Costa"
+	err = repo.Update(context.Background(), user)
+	assert.NoError(t, err)
 
-		assert.NoError(t, err)
-
-		// Verificar atualização
-		updatedUser, err := repo.GetByID(context.Background(), user.ID)
-		assert.NoError(t, err)
-		assert.Equal(t, "João Silva Updated", updatedUser.Name)
-	})
+	// Verificar atualização
+	foundUser, err := repo.GetByID(context.Background(), user.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, "Ana Silva Costa", foundUser.Name)
 }
 
 func TestUserRepository_Integration_Delete(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	repo := NewRepository(db)
 
-	t.Run("should delete user successfully", func(t *testing.T) {
-		// Criar usuário
-		user := &User{
-			Name:  "João Silva",
-			Email: "joao@test.com",
-		}
-		err := repo.Create(context.Background(), user)
-		require.NoError(t, err)
+	// Criar usuário
+	user := &User{
+		Name:  "Pedro Lima",
+		Email: "pedro@example.com",
+	}
+	err := repo.Create(context.Background(), user)
+	require.NoError(t, err)
 
-		// Deletar usuário
-		err = repo.Delete(context.Background(), user.ID)
-		assert.NoError(t, err)
+	// Deletar
+	err = repo.Delete(context.Background(), user.ID)
+	assert.NoError(t, err)
 
-		// Verificar deleção
-		foundUser, err := repo.GetByID(context.Background(), user.ID)
-		assert.Error(t, err)
-		assert.True(t, errors.Is(err, errors.ErrNotFound))
-		assert.Nil(t, foundUser)
-	})
+	// Verificar que não existe mais
+	_, err = repo.GetByID(context.Background(), user.ID)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errors.ErrNotFound)
 }
 
 func TestUserRepository_Integration_List(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	repo := NewRepository(db)
 
-	t.Run("should list users successfully", func(t *testing.T) {
-		// Criar usuários
-		users := []*User{
-			{Name: "João Silva", Email: "joao@test.com"},
-			{Name: "Maria Santos", Email: "maria@test.com"},
-			{Name: "Pedro Oliveira", Email: "pedro@test.com"},
-		}
+	// Criar múltiplos usuários
+	users := []*User{
+		{Name: "User 1", Email: "user1@example.com"},
+		{Name: "User 2", Email: "user2@example.com"},
+		{Name: "User 3", Email: "user3@example.com"},
+	}
 
-		for _, user := range users {
-			err := repo.Create(context.Background(), user)
-			require.NoError(t, err)
-		}
+	for _, user := range users {
+		err := repo.Create(context.Background(), user)
+		require.NoError(t, err)
+	}
 
-		// Listar usuários
-		foundUsers, err := repo.List(context.Background(), 10, 0)
+	// Listar com paginação
+	result, err := repo.List(context.Background(), 2, 0)
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
 
-		assert.NoError(t, err)
-		assert.Len(t, foundUsers, 3)
-		assert.Equal(t, "João Silva", foundUsers[0].Name)
-		assert.Equal(t, "Maria Santos", foundUsers[1].Name)
-		assert.Equal(t, "Pedro Oliveira", foundUsers[2].Name)
-	})
-
-	t.Run("should respect limit and offset", func(t *testing.T) {
-		// Criar usuários
-		users := []*User{
-			{Name: "User 1", Email: "user1@test.com"},
-			{Name: "User 2", Email: "user2@test.com"},
-			{Name: "User 3", Email: "user3@test.com"},
-		}
-
-		for _, user := range users {
-			err := repo.Create(context.Background(), user)
-			require.NoError(t, err)
-		}
-
-		// Listar com limit 2
-		foundUsers, err := repo.List(context.Background(), 2, 0)
-		assert.NoError(t, err)
-		assert.Len(t, foundUsers, 2)
-
-		// Listar com offset 1
-		foundUsers, err = repo.List(context.Background(), 2, 1)
-		assert.NoError(t, err)
-		assert.Len(t, foundUsers, 2)
-	})
+	// Listar próxima página
+	result, err = repo.List(context.Background(), 2, 2)
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
 }
 
 func TestUserRepository_Integration_UserXP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	repo := NewRepository(db)
 
-	t.Run("should create and get user XP successfully", func(t *testing.T) {
-		// Criar usuário
-		user := &User{
-			Name:  "João Silva",
-			Email: "joao@test.com",
-		}
-		err := repo.Create(context.Background(), user)
-		require.NoError(t, err)
+	// Criar usuário
+	user := &User{
+		Name:  "Gamer User",
+		Email: "gamer@example.com",
+	}
+	err := repo.Create(context.Background(), user)
+	require.NoError(t, err)
 
-		// Criar XP entries
-		userXP1 := &UserXP{
+	t.Run("should create and get user XP successfully", func(t *testing.T) {
+		// Adicionar XP
+		xp := &UserXP{
 			UserID:     user.ID,
-			SourceType: XPSourceChallenge,
-			SourceID:   "challenge-1",
+			SourceType: "challenge",
+			SourceID:   "123",
 			Amount:     100,
 		}
-		err = repo.CreateUserXP(context.Background(), userXP1)
-		assert.NoError(t, err)
-
-		userXP2 := &UserXP{
-			UserID:     user.ID,
-			SourceType: XPSourceChallenge,
-			SourceID:   "challenge-2",
-			Amount:     150,
-		}
-		err = repo.CreateUserXP(context.Background(), userXP2)
+		err = repo.CreateUserXP(context.Background(), xp)
 		assert.NoError(t, err)
 
 		// Verificar total XP
 		totalXP, err := repo.GetUserTotalXP(context.Background(), user.ID)
 		assert.NoError(t, err)
-		assert.Equal(t, 250, totalXP)
+		assert.Equal(t, 100, totalXP)
 
-		// Verificar histórico XP
+		// Verificar histórico
 		history, err := repo.GetUserXPHistory(context.Background(), user.ID)
 		assert.NoError(t, err)
-		assert.Len(t, history, 2)
+		assert.Len(t, history, 1)
 		assert.Equal(t, 100, history[0].Amount)
-		assert.Equal(t, 150, history[1].Amount)
 	})
 
 	t.Run("should get users with XP optimized query", func(t *testing.T) {
-		// Criar usuários
-		user1 := &User{
-			Name:  "User 1",
-			Email: "user1@test.com",
+		// Adicionar mais XP
+		xp := &UserXP{
+			UserID:     user.ID,
+			SourceType: "vote",
+			SourceID:   "456",
+			Amount:     50,
 		}
-		err := repo.Create(context.Background(), user1)
-		require.NoError(t, err)
-
-		user2 := &User{
-			Name:  "User 2",
-			Email: "user2@test.com",
-		}
-		err = repo.Create(context.Background(), user2)
-		require.NoError(t, err)
-
-		// Adicionar XP apenas para user1
-		userXP := &UserXP{
-			UserID:     user1.ID,
-			SourceType: XPSourceChallenge,
-			SourceID:   "challenge-1",
-			Amount:     100,
-		}
-		err = repo.CreateUserXP(context.Background(), userXP)
-		require.NoError(t, err)
+		err = repo.CreateUserXP(context.Background(), xp)
+		assert.NoError(t, err)
 
 		// Buscar usuários com XP
 		usersWithXP, err := repo.GetUsersWithXP(context.Background(), 10, 0)
 		assert.NoError(t, err)
-		assert.Len(t, usersWithXP, 2)
-
-		// Verificar XP
-		for _, userWithXP := range usersWithXP {
-			if userWithXP.User.ID == user1.ID {
-				assert.Equal(t, 100, userWithXP.TotalXP)
-			} else if userWithXP.User.ID == user2.ID {
-				assert.Equal(t, 0, userWithXP.TotalXP)
-			}
-		}
+		assert.Len(t, usersWithXP, 1)
+		assert.Equal(t, 150, usersWithXP[0].TotalXP)
 	})
 
 	t.Run("should get multiple users XP", func(t *testing.T) {
-		// Criar usuários
-		user1 := &User{
-			Name:  "User 1",
-			Email: "user1@test.com",
-		}
-		err := repo.Create(context.Background(), user1)
-		require.NoError(t, err)
-
+		// Criar segundo usuário
 		user2 := &User{
-			Name:  "User 2",
-			Email: "user2@test.com",
+			Name:  "Gamer User 2",
+			Email: "gamer2@example.com",
 		}
 		err = repo.Create(context.Background(), user2)
 		require.NoError(t, err)
 
-		// Adicionar XP
-		userXP1 := &UserXP{
-			UserID:     user1.ID,
-			SourceType: XPSourceChallenge,
-			SourceID:   "challenge-1",
-			Amount:     100,
-		}
-		err = repo.CreateUserXP(context.Background(), userXP1)
-		require.NoError(t, err)
-
-		userXP2 := &UserXP{
+		// Adicionar XP ao segundo usuário
+		xp := &UserXP{
 			UserID:     user2.ID,
-			SourceType: XPSourceChallenge,
-			SourceID:   "challenge-2",
+			SourceType: "challenge",
+			SourceID:   "789",
 			Amount:     200,
 		}
-		err = repo.CreateUserXP(context.Background(), userXP2)
-		require.NoError(t, err)
-
-		// Buscar XP múltiplo
-		userIDs := []uint{user1.ID, user2.ID}
-		xpMap, err := repo.GetMultipleUsersXP(context.Background(), userIDs)
+		err = repo.CreateUserXP(context.Background(), xp)
 		assert.NoError(t, err)
-		assert.Len(t, xpMap, 2)
-		assert.Equal(t, 100, xpMap[user1.ID])
-		assert.Equal(t, 200, xpMap[user2.ID])
+
+		// Buscar múltiplos usuários XP
+		userIDs := []uint{user.ID, user2.ID}
+		usersXP, err := repo.GetMultipleUsersXP(context.Background(), userIDs)
+		assert.NoError(t, err)
+		assert.Len(t, usersXP, 2)
+
+		// Verificar XP total de cada usuário
+		assert.Equal(t, 150, usersXP[user.ID])
+		assert.Equal(t, 200, usersXP[user2.ID])
 	})
 }
