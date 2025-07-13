@@ -22,6 +22,14 @@ type Repository interface {
 	GetUserTotalXP(ctx context.Context, userID uint) (int, error)
 	GetUserXPHistory(ctx context.Context, userID uint) ([]*UserXP, error)
 	GetMultipleUsersXP(ctx context.Context, userIDs []uint) (map[uint]int, error)
+
+	// Métodos transacionais
+	CreateWithTx(ctx context.Context, tx *gorm.DB, user *User) error
+	CreateUserXPWithTx(ctx context.Context, tx *gorm.DB, userXP *UserXP) error
+	GetByIDWithTx(ctx context.Context, tx *gorm.DB, id uint) (*User, error)
+	UpdateWithTx(ctx context.Context, tx *gorm.DB, user *User) error
+	DeleteWithTx(ctx context.Context, tx *gorm.DB, id uint) error
+	RemoveUserXPWithTx(ctx context.Context, tx *gorm.DB, userID uint, sourceType, sourceID string, amount int) error
 }
 
 type repository struct {
@@ -234,4 +242,83 @@ func (r *repository) GetMultipleUsersXP(ctx context.Context, userIDs []uint) (ma
 	}
 
 	return xpMap, nil
+}
+
+// Métodos transacionais
+func (r *repository) CreateWithTx(ctx context.Context, tx *gorm.DB, user *User) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := tx.WithContext(ctx).Create(user).Error; err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return errors.AlreadyExists("user", "email", user.Email)
+		}
+		return errors.Internal(err)
+	}
+	return nil
+}
+
+func (r *repository) CreateUserXPWithTx(ctx context.Context, tx *gorm.DB, userXP *UserXP) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := tx.WithContext(ctx).Create(userXP).Error; err != nil {
+		return errors.Internal(err)
+	}
+	return nil
+}
+
+func (r *repository) GetByIDWithTx(ctx context.Context, tx *gorm.DB, id uint) (*User, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var user User
+	err := tx.WithContext(ctx).First(&user, id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.NotFound("user", id)
+		}
+		return nil, errors.Internal(err)
+	}
+	return &user, nil
+}
+
+func (r *repository) UpdateWithTx(ctx context.Context, tx *gorm.DB, user *User) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := tx.WithContext(ctx).Save(user).Error; err != nil {
+		return errors.Internal(err)
+	}
+	return nil
+}
+
+func (r *repository) DeleteWithTx(ctx context.Context, tx *gorm.DB, id uint) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := tx.WithContext(ctx).Delete(&User{}, id).Error; err != nil {
+		return errors.Internal(err)
+	}
+	return nil
+}
+
+func (r *repository) RemoveUserXPWithTx(ctx context.Context, tx *gorm.DB, userID uint, sourceType, sourceID string, amount int) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	// Criar registro de XP negativo para compensação
+	userXP := &UserXP{
+		UserID:     userID,
+		SourceType: sourceType,
+		SourceID:   sourceID,
+		Amount:     -amount, // Negativo para compensação
+		CreatedAt:  time.Now(),
+	}
+
+	if err := tx.WithContext(ctx).Create(userXP).Error; err != nil {
+		return errors.Internal(err)
+	}
+
+	return nil
 }

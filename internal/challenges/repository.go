@@ -24,6 +24,14 @@ type Repository interface {
 	GetVotesBySubmissionID(ctx context.Context, submissionID uint) ([]*ChallengeVote, error)
 	CountVotesBySubmissionID(ctx context.Context, submissionID uint) (int64, error)
 	HasUserVoted(ctx context.Context, userID, submissionID uint) (bool, error)
+
+	// Métodos transacionais
+	CreateChallengeWithTx(ctx context.Context, tx *gorm.DB, challenge *Challenge) error
+	GetChallengeByIDWithTx(ctx context.Context, tx *gorm.DB, id uint) (*Challenge, error)
+	CreateSubmissionWithTx(ctx context.Context, tx *gorm.DB, submission *ChallengeSubmission) error
+	GetSubmissionByIDWithTx(ctx context.Context, tx *gorm.DB, id uint) (*ChallengeSubmission, error)
+	UpdateSubmissionWithTx(ctx context.Context, tx *gorm.DB, submission *ChallengeSubmission) error
+	CreateVoteWithTx(ctx context.Context, tx *gorm.DB, vote *ChallengeVote) error
 }
 
 type repository struct {
@@ -201,4 +209,76 @@ func (r *repository) HasUserVoted(ctx context.Context, userID, submissionID uint
 		return false, errors.Internal(err)
 	}
 	return count > 0, nil
+}
+
+// Métodos transacionais
+func (r *repository) CreateChallengeWithTx(ctx context.Context, tx *gorm.DB, challenge *Challenge) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := tx.WithContext(ctx).Create(challenge).Error; err != nil {
+		return errors.Internal(err)
+	}
+	return nil
+}
+
+func (r *repository) GetChallengeByIDWithTx(ctx context.Context, tx *gorm.DB, id uint) (*Challenge, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var challenge Challenge
+	err := tx.WithContext(ctx).First(&challenge, id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.NotFound("challenge", id)
+		}
+		return nil, errors.Internal(err)
+	}
+	return &challenge, nil
+}
+
+func (r *repository) CreateSubmissionWithTx(ctx context.Context, tx *gorm.DB, submission *ChallengeSubmission) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := tx.WithContext(ctx).Create(submission).Error; err != nil {
+		return errors.Internal(err)
+	}
+	return nil
+}
+
+func (r *repository) GetSubmissionByIDWithTx(ctx context.Context, tx *gorm.DB, id uint) (*ChallengeSubmission, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var submission ChallengeSubmission
+	err := tx.WithContext(ctx).First(&submission, id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.NotFound("submission", id)
+		}
+		return nil, errors.Internal(err)
+	}
+	return &submission, nil
+}
+
+func (r *repository) UpdateSubmissionWithTx(ctx context.Context, tx *gorm.DB, submission *ChallengeSubmission) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	err := tx.WithContext(ctx).Save(submission).Error
+	if err != nil {
+		return errors.Internal(err)
+	}
+	return nil
+}
+
+func (r *repository) CreateVoteWithTx(ctx context.Context, tx *gorm.DB, vote *ChallengeVote) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := tx.WithContext(ctx).Create(vote).Error; err != nil {
+		return errors.Internal(err)
+	}
+	return nil
 }

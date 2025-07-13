@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,22 +15,25 @@ import (
 	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
 	"github.com/rafaelcoelhox/labbend/internal/core/health"
 	corelogger "github.com/rafaelcoelhox/labbend/internal/core/logger"
+	"github.com/rafaelcoelhox/labbend/internal/core/saga"
 	"github.com/rafaelcoelhox/labbend/internal/users"
 	"gorm.io/gorm/logger"
 )
 
-// App - aplicação principal
+// App - estrutura principal da aplicação
 type App struct {
-	config    Config
-	db        *gorm.DB
-	logger    corelogger.Logger
-	eventBus  *eventbus.EventBus
-	healthMgr *health.Manager
-	server    *http.Server
+	config           Config
+	db               *gorm.DB
+	logger           corelogger.Logger
+	eventBusManager  *eventbus.EventBusManager
+	txManager        *database.TxManager
+	sagaManager      *saga.SagaManager
+	healthMgr        *health.Manager
+	outboxRepository *eventbus.OutboxRepository
 }
 
-// New - cria nova instância da aplicação
-func New(config Config) (*App, error) {
+// NewApp - cria nova instância da aplicação
+func NewApp(config Config) (*App, error) {
 	// Setup logger baseado no ambiente
 	var log corelogger.Logger
 	var err error
@@ -74,82 +74,97 @@ func New(config Config) (*App, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Auto migrate
+	// Setup Transaction Manager
+	txManager := database.NewTxManager(db)
+
+	// Setup Saga Manager
+	sagaManager := saga.NewSagaManager(log)
+
+	// Setup Event Bus components
+	immediateEventBus := eventbus.New(log)
+	outboxRepository := eventbus.NewOutboxRepository(db)
+	transactionalEventBus := eventbus.NewTransactionalEventBus(immediateEventBus, outboxRepository, log)
+	eventBusManager := eventbus.NewEventBusManager(immediateEventBus, transactionalEventBus, log)
+
+	// Auto migrate (incluindo tabela de outbox)
 	if err := database.AutoMigrate(db,
 		&users.User{},
 		&users.UserXP{},
 		&challenges.Challenge{},
 		&challenges.ChallengeSubmission{},
 		&challenges.ChallengeVote{},
+		&eventbus.OutboxEvent{}, // Tabela do outbox
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
-
-	// Setup event bus com configuração avançada
-	eventBus := eventbus.New(log)
 
 	// Setup health manager
 	healthMgr := health.NewManager()
 	healthMgr.Register("database", health.NewDatabaseChecker(db))
 	healthMgr.Register("memory", health.NewMemoryChecker())
-	healthMgr.Register("eventbus", health.NewEventBusChecker(eventBus))
+	healthMgr.Register("eventbus", health.NewEventBusChecker(immediateEventBus))
 
 	log.Info("application initialized",
 		zap.String("environment", config.Environment),
 		zap.String("port", config.Port),
 		zap.Bool("production", config.IsProduction()),
+		zap.Bool("transactional_events", true),
+		zap.Bool("saga_enabled", true),
 	)
 
 	return &App{
-		config:    config,
-		db:        db,
-		logger:    log,
-		eventBus:  eventBus,
-		healthMgr: healthMgr,
+		config:           config,
+		db:               db,
+		logger:           log,
+		eventBusManager:  eventBusManager,
+		txManager:        txManager,
+		sagaManager:      sagaManager,
+		healthMgr:        healthMgr,
+		outboxRepository: outboxRepository,
 	}, nil
 }
 
 // Start - inicia a aplicação
-func (a *App) Start() error {
-	// Setup modules
-	userRepo := users.NewRepository(a.db)
-	userService := users.NewService(userRepo, a.logger, a.eventBus)
-	userResolver := users.NewResolver(userService, a.logger)
+func (a *App) Start(ctx context.Context) error {
+	a.logger.Info("starting application")
 
+	// Iniciar Event Bus Manager (processamento de outbox em background)
+	a.eventBusManager.Start(ctx)
+
+	// Setup repositories
+	userRepo := users.NewRepository(a.db)
 	challengeRepo := challenges.NewRepository(a.db)
-	challengeService := challenges.NewService(challengeRepo, userService, a.logger, a.eventBus)
+
+	// Setup services com novos componentes
+	userService := users.NewService(userRepo, a.logger, a.eventBusManager.GetTransactional(), a.txManager)
+	challengeService := challenges.NewService(challengeRepo, userService, a.logger, a.eventBusManager.GetTransactional(), a.txManager, a.sagaManager)
+
+	// Setup resolvers
+	userResolver := users.NewResolver(userService, a.logger)
 	challengeResolver := challenges.NewResolver(challengeService, a.logger)
 
-	// Setup HTTP server com configuração do ambiente
-	if a.config.IsProduction() {
-		gin.SetMode(gin.ReleaseMode)
+	// Setup HTTP server
+	gin.SetMode(gin.ReleaseMode)
+	if !a.config.IsProduction() {
+		gin.SetMode(gin.DebugMode)
 	}
 
-	router := gin.New() // Usar New() ao invés de Default() para controle total
+	router := gin.New()
+	router.Use(gin.Recovery())
 
-	// Middleware de logging HTTP customizado
+	// Middleware de logging
 	router.Use(func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
-		raw := c.Request.URL.RawQuery
+		method := c.Request.Method
 
-		// Process request
 		c.Next()
 
-		// Log após processar
-		latency := time.Since(start)
-		clientIP := c.ClientIP()
-		method := c.Request.Method
-		statusCode := c.Writer.Status()
-
-		if raw != "" {
-			path = path + "?" + raw
-		}
-
-		// Usar o novo método HTTP do logger
-		a.logger.HTTP(method, path, statusCode, latency,
-			zap.String("client_ip", clientIP),
-			zap.Int("body_size", c.Writer.Size()),
+		// Log da requisição
+		a.logger.HTTP(method, path, c.Writer.Status(), time.Since(start),
+			corelogger.String("client_ip", c.ClientIP()),
+			corelogger.String("user_agent", c.Request.UserAgent()),
+			corelogger.Int("body_size", c.Writer.Size()),
 		)
 	})
 
@@ -307,32 +322,78 @@ func (a *App) Start() error {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// Detailed health check
+	// Health check detalhado
 	router.GET("/health/detailed", func(c *gin.Context) {
-		start := time.Now()
-		report := a.healthMgr.CheckAll(c.Request.Context())
-		duration := time.Since(start)
+		a.logger.Debug("detailed health check requested")
 
-		status := http.StatusOK
-		if report.Status == health.StatusUnhealthy {
-			status = http.StatusServiceUnavailable
-			a.logger.Error("health check failed",
-				zap.Any("report", report),
-				zap.Duration("check_duration", duration),
-			)
-		} else if report.Status == health.StatusDegraded {
-			status = http.StatusPartialContent
-			a.logger.Warn("health check degraded",
-				zap.Any("report", report),
-				zap.Duration("check_duration", duration),
-			)
-		} else {
-			a.logger.Debug("health check passed",
-				zap.Duration("check_duration", duration),
-			)
+		// Verificar status do outbox
+		outboxStats, err := a.eventBusManager.GetTransactional().GetOutboxStats(ctx)
+		if err != nil {
+			a.logger.Error("failed to get outbox stats", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get outbox stats"})
+			return
 		}
 
-		c.JSON(status, report)
+		// Verificar sagas em execução
+		runningSagas := a.sagaManager.GetRunningSagas()
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":      "ok",
+			"timestamp":   time.Now().Format(time.RFC3339),
+			"environment": a.config.Environment,
+			"outbox": gin.H{
+				"pending_events": outboxStats.PendingEvents,
+				"failed_events":  outboxStats.FailedEvents,
+			},
+			"sagas": gin.H{
+				"running_count": len(runningSagas),
+			},
+			"database": gin.H{
+				"connected": true,
+			},
+		})
+	})
+
+	// Endpoint para estatísticas do outbox
+	router.GET("/admin/outbox/stats", func(c *gin.Context) {
+		stats, err := a.eventBusManager.GetTransactional().GetOutboxStats(ctx)
+		if err != nil {
+			a.logger.Error("failed to get outbox stats", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, stats)
+	})
+
+	// Endpoint para forçar processamento do outbox
+	router.POST("/admin/outbox/process", func(c *gin.Context) {
+		if err := a.eventBusManager.GetTransactional().ProcessOutboxEvents(ctx); err != nil {
+			a.logger.Error("failed to process outbox events", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "outbox processing triggered"})
+	})
+
+	// Endpoint para sagas em execução
+	router.GET("/admin/sagas", func(c *gin.Context) {
+		runningSagas := a.sagaManager.GetRunningSagas()
+
+		response := make(map[string]interface{})
+		for id, saga := range runningSagas {
+			response[id] = gin.H{
+				"progress":       saga.GetProgress(),
+				"executed_steps": saga.GetExecutedSteps(),
+				"total_steps":    saga.GetTotalSteps(),
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"running_sagas": response,
+			"total_count":   len(runningSagas),
+		})
 	})
 
 	// Metrics endpoint
@@ -350,8 +411,8 @@ func (a *App) Start() error {
 		})
 	})
 
-	// Usar configurações avançadas do servidor
-	a.server = &http.Server{
+	// Configurar server HTTP
+	server := &http.Server{
 		Addr:           ":" + a.config.Port,
 		Handler:        router,
 		ReadTimeout:    a.config.ReadTimeout,
@@ -360,48 +421,27 @@ func (a *App) Start() error {
 		MaxHeaderBytes: a.config.MaxHeaderBytes,
 	}
 
-	a.logger.Info("starting server",
-		zap.String("port", a.config.Port),
+	a.logger.Info("server starting",
+		zap.String("address", server.Addr),
 		zap.Duration("read_timeout", a.config.ReadTimeout),
 		zap.Duration("write_timeout", a.config.WriteTimeout),
-		zap.Duration("idle_timeout", a.config.IdleTimeout),
 	)
 
-	// Start server in goroutine
-	go func() {
-		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			a.logger.Error("failed to start server", zap.Error(err))
-		}
-	}()
-
-	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	a.logger.Info("shutdown signal received, starting graceful shutdown...")
-
-	// Graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Shutdown event bus
-	a.logger.Info("shutting down event bus...")
-	a.eventBus.Shutdown()
-
-	// Shutdown HTTP server
-	a.logger.Info("shutting down HTTP server...")
-	if err := a.server.Shutdown(ctx); err != nil {
-		a.logger.Error("server forced to shutdown", zap.Error(err))
-		return err
+	// Iniciar servidor
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return fmt.Errorf("failed to start server: %w", err)
 	}
 
-	// Sync logger
-	if err := a.logger.Sync(); err != nil {
-		// Don't return error, just log it
-		fmt.Printf("Failed to sync logger: %v\n", err)
-	}
+	return nil
+}
 
-	a.logger.Info("server shutdown completed gracefully")
+// Stop - para a aplicação gracefully
+func (a *App) Stop() error {
+	a.logger.Info("stopping application")
+
+	// Parar Event Bus Manager
+	a.eventBusManager.Shutdown()
+
+	a.logger.Info("application stopped")
 	return nil
 }

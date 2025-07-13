@@ -5,20 +5,27 @@ import (
 	"strconv"
 
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
+	"github.com/rafaelcoelhox/labbend/internal/core/database"
 	"github.com/rafaelcoelhox/labbend/internal/core/errors"
 	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
 	"github.com/rafaelcoelhox/labbend/internal/core/logger"
+	"github.com/rafaelcoelhox/labbend/internal/core/saga"
 )
 
 // EventBus - interface para comunicação entre módulos
 type EventBus interface {
 	Publish(event eventbus.Event)
+	PublishWithTx(ctx context.Context, tx *gorm.DB, event eventbus.Event) error
 }
 
 // UserService - interface para comunicação com módulo de usuários
 type UserService interface {
 	GiveUserXP(ctx context.Context, userID uint, sourceType, sourceID string, amount int) error
+	GiveUserXPWithTx(ctx context.Context, tx *gorm.DB, userID uint, sourceType, sourceID string, amount int) error
+	RemoveUserXP(ctx context.Context, userID uint, sourceType, sourceID string, amount int) error
+	RemoveUserXPWithTx(ctx context.Context, tx *gorm.DB, userID uint, sourceType, sourceID string, amount int) error
 }
 
 // Service - interface de negócio
@@ -42,14 +49,18 @@ type service struct {
 	userService UserService
 	logger      logger.Logger
 	eventBus    EventBus
+	txManager   *database.TxManager
+	sagaManager *saga.SagaManager
 }
 
-func NewService(repo Repository, userService UserService, logger logger.Logger, eventBus EventBus) Service {
+func NewService(repo Repository, userService UserService, logger logger.Logger, eventBus EventBus, txManager *database.TxManager, sagaManager *saga.SagaManager) Service {
 	return &service{
 		repo:        repo,
 		userService: userService,
 		logger:      logger,
 		eventBus:    eventBus,
+		txManager:   txManager,
+		sagaManager: sagaManager,
 	}
 }
 
@@ -308,65 +319,162 @@ func (s *service) processVotingResult(ctx context.Context, submission *Challenge
 	}
 }
 
+// Refatorar approveSubmission para usar transações
 func (s *service) approveSubmission(ctx context.Context, submission *ChallengeSubmission) {
-	s.logger.Info("approving submission", zap.Uint("submission_id", submission.ID))
+	s.logger.Info("approving submission with transaction", zap.Uint("submission_id", submission.ID))
 
-	challenge, err := s.repo.GetChallengeByID(ctx, submission.ChallengeID)
-	if err != nil {
-		s.logger.Error("failed to get challenge for approval", zap.Error(err))
-		return
-	}
+	// Usar transação para garantir atomicidade
+	err := s.txManager.WithTransaction(ctx, func(tx *gorm.DB) error {
+		// 1. Buscar challenge
+		challenge, err := s.repo.GetChallengeByIDWithTx(ctx, tx, submission.ChallengeID)
+		if err != nil {
+			s.logger.Error("failed to get challenge for approval", zap.Error(err))
+			return err
+		}
 
-	submission.Status = SubmissionStatusApproved
-	if err := s.repo.UpdateSubmission(ctx, submission); err != nil {
-		s.logger.Error("failed to update submission status", zap.Error(err))
-		return
-	}
+		// 2. Atualizar status da submission
+		submission.Status = SubmissionStatusApproved
+		if err := s.repo.UpdateSubmissionWithTx(ctx, tx, submission); err != nil {
+			s.logger.Error("failed to update submission status", zap.Error(err))
+			return err
+		}
 
-	if err := s.userService.GiveUserXP(ctx, submission.UserID, "challenge", strconv.Itoa(int(submission.ChallengeID)), challenge.XPReward); err != nil {
-		s.logger.Error("failed to give XP to user", zap.Error(err))
-		// Não retorna erro - XP é importante mas não crítico
-	}
+		// 3. Conceder XP ao usuário (dentro da mesma transação)
+		if err := s.userService.GiveUserXPWithTx(ctx, tx, submission.UserID, "challenge",
+			strconv.Itoa(int(submission.ChallengeID)), challenge.XPReward); err != nil {
+			s.logger.Error("failed to give XP to user", zap.Error(err))
+			return err
+		}
 
-	// Publish event
-	s.eventBus.Publish(eventbus.Event{
-		Type:   "ChallengeApproved",
-		Source: "challenges",
-		Data: map[string]interface{}{
-			"submissionID": submission.ID,
-			"challengeID":  submission.ChallengeID,
-			"userID":       submission.UserID,
-			"xpAwarded":    challenge.XPReward,
-		},
+		// 4. Publicar evento transacional
+		if err := s.eventBus.PublishWithTx(ctx, tx, eventbus.Event{
+			Type:   "ChallengeApproved",
+			Source: "challenges",
+			Data: map[string]interface{}{
+				"submissionID": submission.ID,
+				"challengeID":  submission.ChallengeID,
+				"userID":       submission.UserID,
+				"xpAwarded":    challenge.XPReward,
+			},
+		}); err != nil {
+			s.logger.Error("failed to publish approval event", zap.Error(err))
+			return err
+		}
+
+		return nil
 	})
+
+	if err != nil {
+		s.logger.Error("failed to approve submission", zap.Error(err))
+		return
+	}
 
 	s.logger.Info("submission approved successfully",
 		zap.Uint("submission_id", submission.ID),
-		zap.Uint("user_id", submission.UserID),
-		zap.Int("xp_awarded", challenge.XPReward))
+		zap.Uint("user_id", submission.UserID))
 }
 
-func (s *service) rejectSubmission(ctx context.Context, submission *ChallengeSubmission) {
-	s.logger.Info("rejecting submission", zap.Uint("submission_id", submission.ID))
+// Implementar approveSubmissionWithSaga para operações mais complexas
+func (s *service) approveSubmissionWithSaga(ctx context.Context, submission *ChallengeSubmission) error {
+	var challenge *Challenge
+	var originalStatus string
 
-	// Atualizar status da submission
-	submission.Status = SubmissionStatusRejected
-	if err := s.repo.UpdateSubmission(ctx, submission); err != nil {
-		s.logger.Error("failed to update submission status", zap.Error(err))
+	// Construir saga
+	sagaBuilder := saga.NewSagaBuilder("approve_submission", s.logger)
+
+	approvalSaga := sagaBuilder.
+		Step("get_challenge", "Buscar informações do challenge").
+		Execute(func(ctx context.Context) error {
+			var err error
+			challenge, err = s.repo.GetChallengeByID(ctx, submission.ChallengeID)
+			if err != nil {
+				return err
+			}
+			s.logger.Info("challenge retrieved for approval",
+				zap.Uint("challenge_id", challenge.ID),
+				zap.Int("xp_reward", challenge.XPReward))
+			return nil
+		}).
+		Add().
+		Step("update_submission", "Atualizar status da submissão").
+		Execute(func(ctx context.Context) error {
+			originalStatus = submission.Status
+			submission.Status = SubmissionStatusApproved
+			return s.repo.UpdateSubmission(ctx, submission)
+		}).
+		Compensate(func(ctx context.Context) error {
+			// Reverter status da submissão
+			submission.Status = originalStatus
+			return s.repo.UpdateSubmission(ctx, submission)
+		}).
+		Add().
+		Step("give_xp", "Conceder XP ao usuário").
+		Execute(func(ctx context.Context) error {
+			return s.userService.GiveUserXP(ctx, submission.UserID, "challenge",
+				strconv.Itoa(int(submission.ChallengeID)), challenge.XPReward)
+		}).
+		Compensate(func(ctx context.Context) error {
+			// Remover XP concedido
+			return s.userService.RemoveUserXP(ctx, submission.UserID, "challenge",
+				strconv.Itoa(int(submission.ChallengeID)), challenge.XPReward)
+		}).
+		Add().
+		Step("publish_event", "Publicar evento de aprovação").
+		Execute(func(ctx context.Context) error {
+			s.eventBus.Publish(eventbus.Event{
+				Type:   "ChallengeApproved",
+				Source: "challenges",
+				Data: map[string]interface{}{
+					"submissionID": submission.ID,
+					"challengeID":  submission.ChallengeID,
+					"userID":       submission.UserID,
+					"xpAwarded":    challenge.XPReward,
+				},
+			})
+			return nil
+		}).
+		Add().
+		Build()
+
+	// Executar saga
+	return s.sagaManager.ExecuteSaga(ctx, approvalSaga)
+}
+
+// Refatorar rejectSubmission para usar transações
+func (s *service) rejectSubmission(ctx context.Context, submission *ChallengeSubmission) {
+	s.logger.Info("rejecting submission with transaction", zap.Uint("submission_id", submission.ID))
+
+	// Usar transação para garantir atomicidade
+	err := s.txManager.WithTransaction(ctx, func(tx *gorm.DB) error {
+		// 1. Atualizar status da submission
+		submission.Status = SubmissionStatusRejected
+		if err := s.repo.UpdateSubmissionWithTx(ctx, tx, submission); err != nil {
+			s.logger.Error("failed to update submission status", zap.Error(err))
+			return err
+		}
+
+		// 2. Publicar evento transacional
+		if err := s.eventBus.PublishWithTx(ctx, tx, eventbus.Event{
+			Type:   "ChallengeRejected",
+			Source: "challenges",
+			Data: map[string]interface{}{
+				"submissionID": submission.ID,
+				"challengeID":  submission.ChallengeID,
+				"userID":       submission.UserID,
+				"reason":       "Rejected by community vote",
+			},
+		}); err != nil {
+			s.logger.Error("failed to publish rejection event", zap.Error(err))
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		s.logger.Error("failed to reject submission", zap.Error(err))
 		return
 	}
 
-	// Publish event
-	s.eventBus.Publish(eventbus.Event{
-		Type:   "ChallengeRejected",
-		Source: "challenges",
-		Data: map[string]interface{}{
-			"submissionID": submission.ID,
-			"challengeID":  submission.ChallengeID,
-			"userID":       submission.UserID,
-			"reason":       "Rejected by community vote",
-		},
-	})
-
-	s.logger.Info("submission rejected", zap.Uint("submission_id", submission.ID))
+	s.logger.Info("submission rejected successfully", zap.Uint("submission_id", submission.ID))
 }

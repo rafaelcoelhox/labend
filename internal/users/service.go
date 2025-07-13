@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
+	"github.com/rafaelcoelhox/labbend/internal/core/database"
 	"github.com/rafaelcoelhox/labbend/internal/core/errors"
 	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
 	"github.com/rafaelcoelhox/labbend/internal/core/logger"
@@ -12,6 +14,7 @@ import (
 
 type EventBus interface {
 	Publish(event eventbus.Event)
+	PublishWithTx(ctx context.Context, tx *gorm.DB, event eventbus.Event) error
 }
 
 type Service interface {
@@ -26,6 +29,11 @@ type Service interface {
 	GiveUserXP(ctx context.Context, userID uint, sourceType, sourceID string, amount int) error
 	GetUserTotalXP(ctx context.Context, userID uint) (int, error)
 	GetUserXPHistory(ctx context.Context, userID uint) ([]*UserXP, error)
+
+	// Métodos transacionais
+	GiveUserXPWithTx(ctx context.Context, tx *gorm.DB, userID uint, sourceType, sourceID string, amount int) error
+	RemoveUserXP(ctx context.Context, userID uint, sourceType, sourceID string, amount int) error
+	RemoveUserXPWithTx(ctx context.Context, tx *gorm.DB, userID uint, sourceType, sourceID string, amount int) error
 }
 
 type UserWithXP struct {
@@ -34,16 +42,18 @@ type UserWithXP struct {
 }
 
 type service struct {
-	repo     Repository
-	logger   logger.Logger
-	eventBus EventBus
+	repo      Repository
+	logger    logger.Logger
+	eventBus  EventBus
+	txManager *database.TxManager
 }
 
-func NewService(repo Repository, logger logger.Logger, eventBus EventBus) Service {
+func NewService(repo Repository, logger logger.Logger, eventBus EventBus, txManager *database.TxManager) Service {
 	return &service{
-		repo:     repo,
-		logger:   logger,
-		eventBus: eventBus,
+		repo:      repo,
+		logger:    logger,
+		eventBus:  eventBus,
+		txManager: txManager,
 	}
 }
 
@@ -264,4 +274,129 @@ func (s *service) GetUserTotalXP(ctx context.Context, userID uint) (int, error) 
 
 func (s *service) GetUserXPHistory(ctx context.Context, userID uint) ([]*UserXP, error) {
 	return s.repo.GetUserXPHistory(ctx, userID)
+}
+
+// Métodos transacionais
+func (s *service) GiveUserXPWithTx(ctx context.Context, tx *gorm.DB, userID uint, sourceType, sourceID string, amount int) error {
+	s.logger.Info("giving XP to user with transaction",
+		zap.Uint("user_id", userID),
+		zap.String("source_type", sourceType),
+		zap.String("source_id", sourceID),
+		zap.Int("amount", amount))
+
+	if amount <= 0 {
+		return errors.InvalidInput("XP amount must be positive")
+	}
+
+	// Verificar se usuário existe
+	_, err := s.repo.GetByIDWithTx(ctx, tx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Criar XP dentro da transação
+	userXP := NewUserXP(userID, sourceType, sourceID, amount)
+	if err := s.repo.CreateUserXPWithTx(ctx, tx, userXP); err != nil {
+		s.logger.Error("failed to create user XP in transaction", zap.Error(err))
+		return err
+	}
+
+	// Publicar evento usando event bus transacional
+	if err := s.eventBus.PublishWithTx(ctx, tx, eventbus.Event{
+		Type:   "UserXPGranted",
+		Source: "users",
+		Data: map[string]interface{}{
+			"userID":     userID,
+			"sourceType": sourceType,
+			"sourceID":   sourceID,
+			"amount":     amount,
+		},
+	}); err != nil {
+		s.logger.Error("failed to publish XP event", zap.Error(err))
+		return err
+	}
+
+	s.logger.Info("XP granted successfully in transaction", zap.Uint("user_id", userID), zap.Int("amount", amount))
+	return nil
+}
+
+func (s *service) RemoveUserXP(ctx context.Context, userID uint, sourceType, sourceID string, amount int) error {
+	s.logger.Info("removing XP from user",
+		zap.Uint("user_id", userID),
+		zap.String("source_type", sourceType),
+		zap.String("source_id", sourceID),
+		zap.Int("amount", amount))
+
+	if amount <= 0 {
+		return errors.InvalidInput("XP amount must be positive")
+	}
+
+	// Verificar se usuário existe
+	_, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Criar XP negativo para compensação
+	userXP := NewUserXP(userID, sourceType, sourceID, -amount)
+	if err := s.repo.CreateUserXP(ctx, userXP); err != nil {
+		s.logger.Error("failed to create negative user XP", zap.Error(err))
+		return err
+	}
+
+	s.eventBus.Publish(eventbus.Event{
+		Type:   "UserXPRemoved",
+		Source: "users",
+		Data: map[string]interface{}{
+			"userID":     userID,
+			"sourceType": sourceType,
+			"sourceID":   sourceID,
+			"amount":     amount,
+		},
+	})
+
+	s.logger.Info("XP removed successfully", zap.Uint("user_id", userID), zap.Int("amount", amount))
+	return nil
+}
+
+func (s *service) RemoveUserXPWithTx(ctx context.Context, tx *gorm.DB, userID uint, sourceType, sourceID string, amount int) error {
+	s.logger.Info("removing XP from user with transaction",
+		zap.Uint("user_id", userID),
+		zap.String("source_type", sourceType),
+		zap.String("source_id", sourceID),
+		zap.Int("amount", amount))
+
+	if amount <= 0 {
+		return errors.InvalidInput("XP amount must be positive")
+	}
+
+	// Verificar se usuário existe
+	_, err := s.repo.GetByIDWithTx(ctx, tx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Remover XP dentro da transação
+	if err := s.repo.RemoveUserXPWithTx(ctx, tx, userID, sourceType, sourceID, amount); err != nil {
+		s.logger.Error("failed to remove user XP in transaction", zap.Error(err))
+		return err
+	}
+
+	// Publicar evento usando event bus transacional
+	if err := s.eventBus.PublishWithTx(ctx, tx, eventbus.Event{
+		Type:   "UserXPRemoved",
+		Source: "users",
+		Data: map[string]interface{}{
+			"userID":     userID,
+			"sourceType": sourceType,
+			"sourceID":   sourceID,
+			"amount":     amount,
+		},
+	}); err != nil {
+		s.logger.Error("failed to publish XP removal event", zap.Error(err))
+		return err
+	}
+
+	s.logger.Info("XP removed successfully in transaction", zap.Uint("user_id", userID), zap.Int("amount", amount))
+	return nil
 }
