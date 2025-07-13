@@ -17,15 +17,16 @@ import (
 	"github.com/rafaelcoelhox/labbend/internal/core/database"
 	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
 	"github.com/rafaelcoelhox/labbend/internal/core/health"
-	"github.com/rafaelcoelhox/labbend/internal/core/logger"
+	corelogger "github.com/rafaelcoelhox/labbend/internal/core/logger"
 	"github.com/rafaelcoelhox/labbend/internal/users"
+	"gorm.io/gorm/logger"
 )
 
 // App - aplicação principal
 type App struct {
 	config    Config
 	db        *gorm.DB
-	logger    logger.Logger
+	logger    corelogger.Logger
 	eventBus  *eventbus.EventBus
 	healthMgr *health.Manager
 	server    *http.Server
@@ -33,15 +34,37 @@ type App struct {
 
 // New - cria nova instância da aplicação
 func New(config Config) (*App, error) {
-	// Setup logger
-	log, err := logger.NewDevelopment()
+	// Setup logger baseado no ambiente
+	var log corelogger.Logger
+	var err error
+
+	if config.IsProduction() {
+		log, err = corelogger.New()
+	} else {
+		log, err = corelogger.NewDevelopment()
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
 	}
 
-	// Setup database
-	dbConfig := database.DefaultConfig(config.DatabaseURL)
-	db, err := database.Connect(dbConfig)
+	// Setup database com configuração avançada
+	dbConfig := config.GetDatabaseConfig()
+
+	// Configurar log level baseado no ambiente
+	var logLevel logger.LogLevel
+	if config.IsProduction() {
+		logLevel = logger.Warn
+	} else {
+		logLevel = logger.Info
+	}
+
+	db, err := database.Connect(database.Config{
+		DSN:          dbConfig.DSN,
+		MaxIdleConns: dbConfig.MaxIdleConns,
+		MaxOpenConns: dbConfig.MaxOpenConns,
+		MaxLifetime:  dbConfig.ConnMaxLifetime,
+		LogLevel:     logLevel,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -57,7 +80,7 @@ func New(config Config) (*App, error) {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	// Setup event bus
+	// Setup event bus com configuração avançada
 	eventBus := eventbus.New(log)
 
 	// Setup health manager
@@ -65,6 +88,12 @@ func New(config Config) (*App, error) {
 	healthMgr.Register("database", health.NewDatabaseChecker(db))
 	healthMgr.Register("memory", health.NewMemoryChecker())
 	healthMgr.Register("eventbus", health.NewEventBusChecker(eventBus))
+
+	log.Info("application initialized",
+		zap.String("environment", config.Environment),
+		zap.String("port", config.Port),
+		zap.Bool("production", config.IsProduction()),
+	)
 
 	return &App{
 		config:    config,
@@ -86,7 +115,11 @@ func (a *App) Start() error {
 	challengeService := challenges.NewService(challengeRepo, userService, a.logger, a.eventBus)
 	challengeResolver := challenges.NewResolver(challengeService, a.logger)
 
-	// Setup HTTP server
+	// Setup HTTP server com configuração do ambiente
+	if a.config.IsProduction() {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	router := gin.Default()
 
 	// Add CORS middleware
@@ -111,6 +144,7 @@ func (a *App) Start() error {
 			// Usar método otimizado para buscar usuários com XP
 			users, err := userResolver.Users(c.Request.Context(), nil, nil)
 			if err != nil {
+				a.logger.Error("failed to get users", zap.Error(err))
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
@@ -121,6 +155,7 @@ func (a *App) Start() error {
 			id := c.Param("id")
 			user, err := userResolver.User(c.Request.Context(), id)
 			if err != nil {
+				a.logger.Error("failed to get user", zap.String("id", id), zap.Error(err))
 				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 				return
 			}
@@ -136,9 +171,12 @@ func (a *App) Start() error {
 
 			user, err := userResolver.CreateUser(c.Request.Context(), input)
 			if err != nil {
+				a.logger.Error("failed to create user", zap.Error(err))
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
+
+			a.logger.Info("user created", zap.String("email", user.Email))
 			c.JSON(http.StatusCreated, user)
 		})
 
@@ -146,6 +184,7 @@ func (a *App) Start() error {
 		api.GET("/challenges", func(c *gin.Context) {
 			challenges, err := challengeResolver.Challenges(c.Request.Context(), nil, nil)
 			if err != nil {
+				a.logger.Error("failed to get challenges", zap.Error(err))
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
@@ -161,9 +200,12 @@ func (a *App) Start() error {
 
 			challenge, err := challengeResolver.CreateChallenge(c.Request.Context(), input)
 			if err != nil {
+				a.logger.Error("failed to create challenge", zap.Error(err))
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
+
+			a.logger.Info("challenge created", zap.String("title", challenge.Title))
 			c.JSON(http.StatusCreated, challenge)
 		})
 	}
@@ -192,6 +234,7 @@ func (a *App) Start() error {
 		// Em produção usaria Prometheus metrics
 		c.JSON(http.StatusOK, gin.H{
 			"uptime_seconds": time.Since(time.Now().Add(-1 * time.Hour)).Seconds(), // Mock
+			"environment":    a.config.Environment,
 			"modules": gin.H{
 				"users":      gin.H{"status": "active"},
 				"challenges": gin.H{"status": "active"},
@@ -199,16 +242,22 @@ func (a *App) Start() error {
 		})
 	})
 
+	// Usar configurações avançadas do servidor
 	a.server = &http.Server{
 		Addr:           ":" + a.config.Port,
 		Handler:        router,
-		ReadTimeout:    30 * time.Second,
-		WriteTimeout:   30 * time.Second,
-		IdleTimeout:    120 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1MB
+		ReadTimeout:    a.config.ReadTimeout,
+		WriteTimeout:   a.config.WriteTimeout,
+		IdleTimeout:    a.config.IdleTimeout,
+		MaxHeaderBytes: a.config.MaxHeaderBytes,
 	}
 
-	a.logger.Info("starting server", zap.String("port", a.config.Port))
+	a.logger.Info("starting server",
+		zap.String("port", a.config.Port),
+		zap.Duration("read_timeout", a.config.ReadTimeout),
+		zap.Duration("write_timeout", a.config.WriteTimeout),
+		zap.Duration("idle_timeout", a.config.IdleTimeout),
+	)
 
 	// Start server in goroutine
 	go func() {
