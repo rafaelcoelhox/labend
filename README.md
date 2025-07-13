@@ -24,6 +24,11 @@
 - [Troubleshooting](#-troubleshooting)
 - [Contribuição](#-contribuição)
 
+## 📚 Documentação Completa
+
+Para guias técnicos detalhados, exemplos práticos e referências de arquitetura, consulte:  
+**[📖 Central de Documentação](docs/README.md)**
+
 ## 🌟 Características
 
 ### 🚀 Performance Otimizada
@@ -78,8 +83,13 @@ labend/
 │       └── errors/        # Error handling
 ├── api/                   # Schemas e definições da API
 ├── scripts/               # Scripts de inicialização
-├── docker-compose.yml     # Orquestração de containers
-└── Dockerfile            # Imagem da aplicação
+├── docs/                 # 📚 Documentação organizada
+│   ├── guides/           # Guias técnicos
+│   └── examples/         # Exemplos práticos
+├── configs/              # ⚙️ Configurações
+├── deployments/          # 🚀 Deploy configs
+├── docker/               # 🐳 Docker estruturado
+└── scripts/              # 📜 Scripts utilitários
 ```
 
 ### 🔄 Fluxo de Arquitetura
@@ -114,11 +124,11 @@ graph TB
 git clone <repository-url>
 cd labend
 
-# Subir aplicação completa
+# Subir ambiente de desenvolvimento
 docker-compose up --build
 
-# Ou apenas o banco de dados
-docker-compose up postgres -d
+# Ou subir monitoramento completo
+docker-compose -f docker-compose.monitoring.yml up -d
 ```
 
 ### Opção 2: Desenvolvimento Local
@@ -452,7 +462,7 @@ docker-compose exec postgres psql -U labend_user -d labend_db -c "SELECT count(*
 - [ ] **Tests Coverage**: 90%+ de cobertura
 - [ ] **CI/CD Pipeline**: Automação completa
 - [ ] **Kubernetes**: Deploy em cluster
-- [ ] **Monitoring**: Grafana dashboards
+- [ ] **Monitoring**: Grafana dashboards (repositório separado)
 - [ ] **Security**: Auditoria de segurança
 - [ ] **Documentation**: OpenAPI/Swagger
 
