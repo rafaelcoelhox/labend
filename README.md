@@ -19,6 +19,7 @@
 - [Performance](#-performance)
 - [Configuração](#-configuração)
 - [Desenvolvimento](#-desenvolvimento)
+- [CI/CD](#-cicd)
 - [Monitoramento](#-monitoramento)
 - [Troubleshooting](#-troubleshooting)
 - [Contribuição](#-contribuição)
@@ -485,6 +486,40 @@ docker-compose up postgres -d
 export DATABASE_URL="postgres://labend_user:labend_password@localhost:5432/labend_db?sslmode=disable"
 go run cmd/server/main.go
 ```
+
+## 🚀 CI/CD
+
+Este projeto possui uma esteira completa de CI/CD configurada para deploy automático no Fly.io.
+
+### 🏗️ Pipeline Automático
+
+- **Testes**: Executados automaticamente em todos os PRs
+- **Linting**: Verificação de qualidade de código
+- **Security**: Scan de segurança com gosec
+- **Deploy**: Automático para produção (`main`) e staging (`develop`)
+
+### 📦 Ambientes
+
+- **Produção**: `labend.fly.dev` (branch `main`)
+- **Staging**: `labend-staging.fly.dev` (branch `develop`)
+
+### 🛠️ Scripts Utilitários
+
+```bash
+# Configurar esteira CI/CD
+./scripts/setup-cicd.sh
+
+# Monitorar deploys
+./scripts/monitor-deploy.sh status
+./scripts/monitor-deploy.sh logs staging 100
+./scripts/monitor-deploy.sh deploy prod
+```
+
+### 📚 Documentação
+
+- **Setup Completo**: [CI_CD_SETUP.md](CI_CD_SETUP.md)
+- **Monitoramento**: Scripts em `/scripts/`
+- **Configurações**: `fly.toml` e `fly.staging.toml`
 
 ## 📄 Licença
 
