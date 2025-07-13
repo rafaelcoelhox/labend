@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.23'
+  GO_VERSION: '1.24.1'
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 5s
 
     steps:
     - name: Checkout code
@@ -39,16 +39,27 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
+    - name: Clean Go cache on toolchain conflicts
+      run: |
+        go clean -modcache
+        go clean -cache
+        
     - name: Cache Go modules
       uses: actions/cache@v4
       with:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}-${{ hashFiles('**/go.mod') }}
         restore-keys: |
+          ${{ runner.os }}-go-${{ env.GO_VERSION }}-
           ${{ runner.os }}-go-
 
+    - name: Verify Go toolchain
+      run: |
+        go version
+        go env GOVERSION
+        
     - name: Install dependencies
       run: go mod download
 
