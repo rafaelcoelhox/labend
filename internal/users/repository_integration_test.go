@@ -22,8 +22,8 @@ func setupTestDB(t *testing.T) (*gorm.DB, func()) {
 	ctx := context.Background()
 
 	// Criar container PostgreSQL
-	postgresContainer, err := postgres.RunContainer(ctx,
-		testcontainers.WithImage("postgres:15-alpine"),
+	postgresContainer, err := postgres.Run(ctx,
+		"postgres:15-alpine",
 		postgres.WithDatabase("testdb"),
 		postgres.WithUsername("testuser"),
 		postgres.WithPassword("testpass"),
@@ -59,7 +59,9 @@ func setupTestDB(t *testing.T) (*gorm.DB, func()) {
 		if sqlDB != nil {
 			sqlDB.Close()
 		}
-		postgresContainer.Terminate(ctx)
+		if err := postgresContainer.Terminate(ctx); err != nil {
+			t.Logf("failed to terminate container: %v", err)
+		}
 	}
 
 	return db, cleanup

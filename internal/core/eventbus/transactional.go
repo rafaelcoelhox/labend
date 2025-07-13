@@ -190,9 +190,15 @@ func (teb *TransactionalEventBus) ProcessOutboxEvents(ctx context.Context) error
 				zap.String("event_type", event.EventType),
 				zap.Error(err))
 
-			teb.outboxRepo.MarkAsFailed(ctx, event.ID, err.Error())
-		} else {
-			teb.outboxRepo.MarkAsProcessed(ctx, event.ID)
+			if err != nil {
+				if markErr := teb.outboxRepo.MarkAsFailed(ctx, event.ID, err.Error()); markErr != nil {
+					teb.logger.Error("failed to mark event as failed", zap.Error(markErr))
+				}
+			} else {
+				if markErr := teb.outboxRepo.MarkAsProcessed(ctx, event.ID); markErr != nil {
+					teb.logger.Error("failed to mark event as processed", zap.Error(markErr))
+				}
+			}
 		}
 	}
 
@@ -240,9 +246,13 @@ func (teb *TransactionalEventBus) ProcessFailedEvents(ctx context.Context) error
 			zap.Int("retry_count", event.RetryCount))
 
 		if err := teb.processEvent(ctx, event); err != nil {
-			teb.outboxRepo.MarkAsFailed(ctx, event.ID, err.Error())
+			if markErr := teb.outboxRepo.MarkAsFailed(ctx, event.ID, err.Error()); markErr != nil {
+				teb.logger.Error("failed to mark event as failed", zap.Error(markErr))
+			}
 		} else {
-			teb.outboxRepo.MarkAsProcessed(ctx, event.ID)
+			if markErr := teb.outboxRepo.MarkAsProcessed(ctx, event.ID); markErr != nil {
+				teb.logger.Error("failed to mark event as processed", zap.Error(markErr))
+			}
 		}
 	}
 

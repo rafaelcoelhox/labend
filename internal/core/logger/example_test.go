@@ -12,7 +12,9 @@ func TestLoggerExample(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
-	defer log.Sync()
+	defer func() {
+		_ = log.Sync() // Ignorar erro no sync para testes
+	}()
 
 	// Logs básicos
 	log.Debug("Debug message for troubleshooting")
@@ -82,7 +84,9 @@ func TestLoggerProduction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create production logger: %v", err)
 	}
-	defer log.Sync()
+	defer func() {
+		_ = log.Sync() // Ignorar erro no sync para testes
+	}()
 
 	log.Info("Production logger test",
 		String("environment", "production"),
@@ -111,7 +115,9 @@ func TestLoggerCustomConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create custom logger: %v", err)
 	}
-	defer log.Sync()
+	defer func() {
+		_ = log.Sync() // Ignorar erro no sync para testes
+	}()
 
 	// Estes não devem aparecer (nível debug/info)
 	log.Debug("This debug message should not appear")

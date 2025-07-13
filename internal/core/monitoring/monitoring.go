@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	corelogger "github.com/rafaelcoelhox/labbend/internal/core/logger"
 )
 
@@ -34,7 +35,6 @@ type Monitor struct {
 
 	// Controle interno
 	startTime time.Time
-	mu        sync.RWMutex
 }
 
 // GoroutineTracker - rastreador de goroutines
@@ -119,8 +119,8 @@ func NewMonitor(logger corelogger.Logger) *Monitor {
 	registry.MustRegister(raceConditionAlert)
 
 	// Métricas padrão do Go (incluem go_gc_duration_seconds e outras)
-	registry.MustRegister(prometheus.NewGoCollector())
-	registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	registry.MustRegister(collectors.NewGoCollector())
+	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 	goroutineTracker := &GoroutineTracker{
 		goroutines:    make(map[string]*GoroutineInfo),
