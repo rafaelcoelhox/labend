@@ -33,7 +33,7 @@ type ChallengeVote struct {
 	SubmissionID uint      `json:"submission_id" gorm:"not null;index"`
 	UserID       uint      `json:"user_id" gorm:"not null;index"`
 	Approved     bool      `json:"approved" gorm:"not null"`
-	TimeCheck    int       `json:"time_check" gorm:"not null"` // tempo em segundos
+	TimeCheck    int       `json:"time_check" gorm:"not null"`
 	IsValid      bool      `json:"is_valid" gorm:"not null"`
 	CreatedAt    time.Time `json:"created_at"`
 }

@@ -1,6 +1,8 @@
 module github.com/rafaelcoelhox/labbend
 
-go 1.24.1
+go 1.23.0
+
+toolchain go1.24.1
 
 require (
 	github.com/gin-gonic/gin v1.10.1
