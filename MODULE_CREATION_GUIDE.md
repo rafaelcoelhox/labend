@@ -21,7 +21,7 @@ A aplicação segue uma arquitetura modular baseada em **Domain-Driven Design (D
 
 ```
 ┌─────────────────────────┐
-│      Presentation       │  ← Resolver (GraphQL/HTTP)
+│      Presentation       │  ← Resolver (HTTP/REST)
 ├─────────────────────────┤
 │      Business Logic     │  ← Service (Regras de negócio)
 ├─────────────────────────┤
@@ -109,7 +109,7 @@ cd internal/nome_modulo
 // # Arquitetura
 //
 // O pacote segue a arquitetura em camadas:
-//   - Resolver: Camada de apresentação (HTTP/GraphQL)
+//   - Resolver: Camada de apresentação (HTTP/REST)
 //   - Service: Lógica de negócio e regras
 //   - Repository: Acesso a dados otimizado
 //   - Model: Entidades e validações
@@ -655,6 +655,10 @@ func (s *service) CreateMinhaEntidadeWithTx(ctx context.Context, tx *gorm.DB, in
 
 ### Template: resolver.go
 
+**Nota**: Para novos módulos, você adiciona as queries/mutations no schema GraphQL principal em `api/schema.graphqls` e implementa as funções no resolver central em `internal/app/graph/schema.resolvers.go`.
+
+Alternativamente, se você quiser criar um resolver específico para o módulo (útil para lógica complexa), siga este template:
+
 ```go
 package nome_modulo
 
@@ -738,22 +742,6 @@ func (r *Resolver) MinhaEntidades(ctx context.Context, limit *int, offset *int) 
 	}
 
 	return result, nil
-}
-
-func (r *Resolver) MinhaEntidadeByNome(ctx context.Context, nome string) (*GraphQLMinhaEntidade, error) {
-	entity, err := r.service.GetMinhaEntidadeByNome(ctx, nome)
-	if err != nil {
-		return nil, err
-	}
-
-	return &GraphQLMinhaEntidade{
-		ID:        entity.ID,
-		Nome:      entity.Nome,
-		Descricao: entity.Descricao,
-		Status:    entity.Status,
-		CreatedAt: entity.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt: entity.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-	}, nil
 }
 
 // === MUTATION RESOLVERS ===
@@ -1031,7 +1019,7 @@ api := router.Group("/api/v1")
 }
 ```
 
-### 4. Atualizar GraphQL Schema
+### 4. Adicionar ao Schema GraphQL
 
 ```graphql
 # Em api/schema.graphqls
@@ -1070,6 +1058,30 @@ extend type Mutation {
   updateMinhaEntidade(id: ID!, input: UpdateMinhaEntidadeInput!): MinhaEntidade!
   deleteMinhaEntidade(id: ID!): Boolean!
 }
+```
+
+### 5. Implementar Resolvers GraphQL
+
+```go
+// Em internal/app/graph/schema.resolvers.go
+
+// Adicionar as funções do novo módulo
+func (r *queryResolver) MinhaEntidade(ctx context.Context, id string) (*MinhaEntidade, error) {
+    entityID, err := strconv.ParseUint(id, 10, 32)
+    if err != nil {
+        return nil, fmt.Errorf("invalid ID: %v", err)
+    }
+    
+    return r.minhaEntidadeService.GetMinhaEntidade(ctx, uint(entityID))
+}
+
+// ... outras funções
+```
+
+### 6. Regenerar Código GraphQL
+
+```bash
+go run github.com/99designs/gqlgen generate
 ```
 
 ## 🧪 Testes
@@ -1288,8 +1300,9 @@ if err := s.eventBus.PublishWithTx(ctx, tx, event); err != nil {
 - [ ] Implementar service_test.go
 - [ ] Integrar no app.go
 - [ ] Atualizar migrações
-- [ ] Criar rotas HTTP
-- [ ] Atualizar GraphQL schema
+- [ ] Adicionar ao schema GraphQL
+- [ ] Implementar resolvers GraphQL
+- [ ] Regenerar código GraphQL
 - [ ] Gerar mocks
 - [ ] Executar testes
 - [ ] Atualizar documentação

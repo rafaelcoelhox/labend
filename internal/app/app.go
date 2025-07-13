@@ -6,10 +6,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
+	"github.com/rafaelcoelhox/labbend/internal/app/graph"
 	"github.com/rafaelcoelhox/labbend/internal/challenges"
 	"github.com/rafaelcoelhox/labbend/internal/core/database"
 	"github.com/rafaelcoelhox/labbend/internal/core/eventbus"
@@ -143,6 +146,9 @@ func (a *App) Start(ctx context.Context) error {
 	userResolver := users.NewResolver(userService, a.logger)
 	challengeResolver := challenges.NewResolver(challengeService, a.logger)
 
+	// Setup GraphQL resolver
+	graphqlResolver := graph.NewResolver(userService, challengeService, a.logger)
+
 	// Setup HTTP server
 	gin.SetMode(gin.ReleaseMode)
 	if !a.config.IsProduction() {
@@ -197,6 +203,14 @@ func (a *App) Start(ctx context.Context) error {
 
 		c.Next()
 	})
+
+	// GraphQL endpoint
+	schema := graph.NewExecutableSchema(graph.Config{Resolvers: graphqlResolver})
+	graphqlHandler := handler.NewDefaultServer(schema)
+	playgroundHandler := playground.Handler("GraphQL Playground", "/graphql")
+
+	router.POST("/graphql", gin.WrapH(graphqlHandler))
+	router.GET("/graphql", gin.WrapH(playgroundHandler))
 
 	// API routes
 	api := router.Group("/api")
