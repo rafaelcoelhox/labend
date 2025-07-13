@@ -38,11 +38,16 @@ func New(config Config) (*App, error) {
 	var log corelogger.Logger
 	var err error
 
-	if config.IsProduction() {
-		log, err = corelogger.New()
-	} else {
-		log, err = corelogger.NewDevelopment()
+	loggerConfig := corelogger.Config{
+		Level:            config.LogLevel,
+		Environment:      config.Environment,
+		EnableCaller:     true,
+		EnableStacktrace: config.IsProduction(),
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stderr"},
 	}
+
+	log, err = corelogger.NewWithConfig(loggerConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
 	}
@@ -120,7 +125,49 @@ func (a *App) Start() error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	router := gin.Default()
+	router := gin.New() // Usar New() ao invés de Default() para controle total
+
+	// Middleware de logging HTTP customizado
+	router.Use(func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		raw := c.Request.URL.RawQuery
+
+		// Process request
+		c.Next()
+
+		// Log após processar
+		latency := time.Since(start)
+		clientIP := c.ClientIP()
+		method := c.Request.Method
+		statusCode := c.Writer.Status()
+
+		if raw != "" {
+			path = path + "?" + raw
+		}
+
+		// Usar o novo método HTTP do logger
+		a.logger.HTTP(method, path, statusCode, latency,
+			zap.String("client_ip", clientIP),
+			zap.Int("body_size", c.Writer.Size()),
+		)
+	})
+
+	// Recovery middleware com logging customizado
+	router.Use(func(c *gin.Context) {
+		defer func() {
+			if err := recover(); err != nil {
+				a.logger.Error("panic recovered",
+					zap.Any("error", err),
+					zap.String("path", c.Request.URL.Path),
+					zap.String("method", c.Request.Method),
+				)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+				c.Abort()
+			}
+		}()
+		c.Next()
+	})
 
 	// Add CORS middleware
 	router.Use(func(c *gin.Context) {
@@ -141,89 +188,148 @@ func (a *App) Start() error {
 	{
 		// User routes
 		api.GET("/users", func(c *gin.Context) {
+			start := time.Now()
 			// Usar método otimizado para buscar usuários com XP
 			users, err := userResolver.Users(c.Request.Context(), nil, nil)
 			if err != nil {
-				a.logger.Error("failed to get users", zap.Error(err))
+				a.logger.Error("failed to get users",
+					zap.Error(err),
+					zap.String("endpoint", "GET /api/users"),
+				)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
+
+			a.logger.Performance("get_users", time.Since(start),
+				zap.Int("user_count", len(users)),
+			)
 			c.JSON(http.StatusOK, users)
 		})
 
 		api.GET("/users/:id", func(c *gin.Context) {
 			id := c.Param("id")
+			requestLogger := a.logger.WithFields(zap.String("user_id", id))
+
 			user, err := userResolver.User(c.Request.Context(), id)
 			if err != nil {
-				a.logger.Error("failed to get user", zap.String("id", id), zap.Error(err))
+				requestLogger.Error("failed to get user", zap.Error(err))
 				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 				return
 			}
+			requestLogger.Debug("user retrieved successfully")
 			c.JSON(http.StatusOK, user)
 		})
 
 		api.POST("/users", func(c *gin.Context) {
 			var input users.CreateUserInput
 			if err := c.ShouldBindJSON(&input); err != nil {
+				a.logger.Warn("invalid user input",
+					zap.Error(err),
+					zap.Any("input", input),
+				)
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
 
+			start := time.Now()
 			user, err := userResolver.CreateUser(c.Request.Context(), input)
 			if err != nil {
-				a.logger.Error("failed to create user", zap.Error(err))
+				a.logger.Error("failed to create user",
+					zap.Error(err),
+					zap.String("email", input.Email),
+				)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
 
-			a.logger.Info("user created", zap.String("email", user.Email))
+			a.logger.Event("user_created", "api",
+				zap.String("user_email", user.Email),
+				zap.Uint("user_id", user.ID),
+			)
+			a.logger.Performance("create_user", time.Since(start))
 			c.JSON(http.StatusCreated, user)
 		})
 
 		// Challenge routes
 		api.GET("/challenges", func(c *gin.Context) {
+			start := time.Now()
 			challenges, err := challengeResolver.Challenges(c.Request.Context(), nil, nil)
 			if err != nil {
-				a.logger.Error("failed to get challenges", zap.Error(err))
+				a.logger.Error("failed to get challenges",
+					zap.Error(err),
+					zap.String("endpoint", "GET /api/challenges"),
+				)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
+
+			a.logger.Performance("get_challenges", time.Since(start),
+				zap.Int("challenge_count", len(challenges)),
+			)
 			c.JSON(http.StatusOK, challenges)
 		})
 
 		api.POST("/challenges", func(c *gin.Context) {
 			var input challenges.CreateChallengeInput
 			if err := c.ShouldBindJSON(&input); err != nil {
+				a.logger.Warn("invalid challenge input",
+					zap.Error(err),
+					zap.Any("input", input),
+				)
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
 
+			start := time.Now()
 			challenge, err := challengeResolver.CreateChallenge(c.Request.Context(), input)
 			if err != nil {
-				a.logger.Error("failed to create challenge", zap.Error(err))
+				a.logger.Error("failed to create challenge",
+					zap.Error(err),
+					zap.String("title", input.Title),
+				)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
 
-			a.logger.Info("challenge created", zap.String("title", challenge.Title))
+			a.logger.Event("challenge_created", "api",
+				zap.String("challenge_title", challenge.Title),
+				zap.Uint("challenge_id", challenge.ID),
+				zap.Int("xp_reward", challenge.XPReward),
+			)
+			a.logger.Performance("create_challenge", time.Since(start))
 			c.JSON(http.StatusCreated, challenge)
 		})
 	}
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
+		a.logger.Debug("health check requested")
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
 	// Detailed health check
 	router.GET("/health/detailed", func(c *gin.Context) {
+		start := time.Now()
 		report := a.healthMgr.CheckAll(c.Request.Context())
+		duration := time.Since(start)
 
 		status := http.StatusOK
 		if report.Status == health.StatusUnhealthy {
 			status = http.StatusServiceUnavailable
+			a.logger.Error("health check failed",
+				zap.Any("report", report),
+				zap.Duration("check_duration", duration),
+			)
 		} else if report.Status == health.StatusDegraded {
 			status = http.StatusPartialContent
+			a.logger.Warn("health check degraded",
+				zap.Any("report", report),
+				zap.Duration("check_duration", duration),
+			)
+		} else {
+			a.logger.Debug("health check passed",
+				zap.Duration("check_duration", duration),
+			)
 		}
 
 		c.JSON(status, report)
@@ -231,10 +337,12 @@ func (a *App) Start() error {
 
 	// Metrics endpoint
 	router.GET("/metrics", func(c *gin.Context) {
+		a.logger.Debug("metrics requested")
 		// Em produção usaria Prometheus metrics
 		c.JSON(http.StatusOK, gin.H{
 			"uptime_seconds": time.Since(time.Now().Add(-1 * time.Hour)).Seconds(), // Mock
 			"environment":    a.config.Environment,
+			"log_level":      a.config.LogLevel,
 			"modules": gin.H{
 				"users":      gin.H{"status": "active"},
 				"challenges": gin.H{"status": "active"},
@@ -271,21 +379,29 @@ func (a *App) Start() error {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	a.logger.Info("shutting down server...")
+	a.logger.Info("shutdown signal received, starting graceful shutdown...")
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// Shutdown event bus
+	a.logger.Info("shutting down event bus...")
 	a.eventBus.Shutdown()
 
 	// Shutdown HTTP server
+	a.logger.Info("shutting down HTTP server...")
 	if err := a.server.Shutdown(ctx); err != nil {
 		a.logger.Error("server forced to shutdown", zap.Error(err))
 		return err
 	}
 
-	a.logger.Info("server exited")
+	// Sync logger
+	if err := a.logger.Sync(); err != nil {
+		// Don't return error, just log it
+		fmt.Printf("Failed to sync logger: %v\n", err)
+	}
+
+	a.logger.Info("server shutdown completed gracefully")
 	return nil
 }

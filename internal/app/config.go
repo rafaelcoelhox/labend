@@ -35,6 +35,7 @@ type Config struct {
 	// Environment
 	Environment string
 	LogLevel    string
+	LogFormat   string // "json" ou "console"
 }
 
 // LoadConfig - carrega configuração
@@ -67,6 +68,7 @@ func LoadConfig() Config {
 		// Environment
 		Environment: getEnv("ENVIRONMENT", "development"),
 		LogLevel:    getEnv("LOG_LEVEL", "info"),
+		LogFormat:   getEnv("LOG_FORMAT", "console"),
 	}
 }
 
