@@ -86,9 +86,9 @@ internal/
 ### 1. `doc.go` - Documentação do Pacote
 
 ```go
-// Package nome_modulo fornece funcionalidades para [DESCRIÇÃO_DO_DOMÍNIO]
-// na plataforma LabEnd.
-//
+ //Package nome_modulo fornece funcionalidades para [DESCRIÇÃO_DO_DOMÍNIO]
+ //na plataforma LabEnd.
+
 // Este pacote implementa [FUNCIONALIDADE_PRINCIPAL] onde:
 //   - [FEATURE_1]
 //   - [FEATURE_2]

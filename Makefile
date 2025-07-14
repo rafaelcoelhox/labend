@@ -1,6 +1,6 @@
 # Makefile para o projeto labend
 
-.PHONY: help test test-unit test-integration test-mocks generate-mocks run build clean
+.PHONY: help test test-unit test-integration test-mocks generate-mocks run build clean generate-module
 
 # Default target
 help:
@@ -9,6 +9,7 @@ help:
 	@echo "  make test-unit      - Executa apenas testes unitários"
 	@echo "  make test-mocks     - Executa apenas testes com mocks"
 	@echo "  make generate-mocks - Gera mocks usando gomock"
+	@echo "  make generate-module MODULE=<nome> - Gera novo módulo"
 	@echo "  make run            - Executa a aplicação"
 	@echo "  make build          - Compila a aplicação"
 	@echo "  make clean          - Limpa arquivos gerados"
@@ -46,6 +47,15 @@ clean:
 # Desenvolvimento
 dev: generate-mocks test-mocks
 	@echo "✅ Desenvolvimento pronto - mocks gerados e testados"
+
+# Gerar novo módulo
+generate-module:
+	@if [ -z "$(MODULE)" ]; then \
+		echo "Uso: make generate-module MODULE=<nome>"; \
+		echo "Exemplo: make generate-module MODULE=products"; \
+		exit 1; \
+	fi
+	@./scripts/generate-module.sh $(MODULE)
 
 # Verificação completa
 verify: clean generate-mocks test-mocks

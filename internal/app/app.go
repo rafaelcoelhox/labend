@@ -14,6 +14,7 @@ import (
 
 	"github.com/rafaelcoelhox/labbend/internal/challenges"
 	schemas_configuration "github.com/rafaelcoelhox/labbend/internal/config/graphql"
+	"github.com/rafaelcoelhox/labbend/internal/notifications"
 	"github.com/rafaelcoelhox/labbend/internal/users"
 	"github.com/rafaelcoelhox/labbend/pkg/database"
 	"github.com/rafaelcoelhox/labbend/pkg/eventbus"
@@ -124,13 +125,18 @@ func (a *App) Start(ctx context.Context) error {
 	// Setup repositories
 	userRepo := users.NewRepository(a.db)
 	challengeRepo := challenges.NewRepository(a.db)
+	notificationsRepo := notifications.NewRepository(a.db)
 
 	// Setup services
 	userService := users.NewService(userRepo, a.logger, a.eventBus, a.txManager)
 	challengeService := challenges.NewService(challengeRepo, userService, a.logger, a.eventBus, a.txManager, a.sagaManager)
 
+	// Create adapter for notifications service
+	userServiceAdapter := &userServiceAdapter{userService: userService}
+	notificationsService := notifications.NewService(notificationsRepo, userServiceAdapter, a.logger, a.eventBus, a.txManager)
+
 	// Setup GraphQL schema usando configuração automática
-	schema, err := schemas_configuration.ConfigureSchema(userService, challengeService, a.logger)
+	schema, err := schemas_configuration.ConfigureSchema(userService, challengeService, notificationsService, a.logger)
 	if err != nil {
 		return fmt.Errorf("failed to build GraphQL schema: %w", err)
 	}
@@ -248,7 +254,6 @@ func (a *App) Stop() error {
 	if a.eventBus != nil {
 		a.eventBus.Shutdown()
 	}
-
 	// Fechar conexão com o banco de dados
 	if sqlDB, err := a.db.DB(); err == nil {
 		if err := sqlDB.Close(); err != nil {
@@ -259,4 +264,13 @@ func (a *App) Stop() error {
 
 	a.logger.Info("Application stopped successfully")
 	return nil
+}
+
+// userServiceAdapter adapta o users.Service para ser compatível com outros módulos
+type userServiceAdapter struct {
+	userService users.Service
+}
+
+func (u *userServiceAdapter) GetUser(ctx context.Context, id uint) (interface{}, error) {
+	return u.userService.GetUser(ctx, id)
 }

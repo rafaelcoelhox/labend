@@ -5,14 +5,15 @@ import (
 	"log"
 
 	"github.com/rafaelcoelhox/labbend/internal/challenges"
+	"github.com/rafaelcoelhox/labbend/internal/notifications"
 	"github.com/rafaelcoelhox/labbend/internal/users"
 	"github.com/rafaelcoelhox/labbend/pkg/logger"
 )
 
 // ExampleUsage demonstra como usar a configuração automática do schema
-func ExampleUsage(userService users.Service, challengeService challenges.Service, logger logger.Logger) {
+func ExampleUsage(userService users.Service, challengeService challenges.Service, notificationsService notifications.Service, logger logger.Logger) {
 	// Configura o schema GraphQL automaticamente
-	schema, err := ConfigureSchema(userService, challengeService, logger)
+	schema, err := ConfigureSchema(userService, challengeService, notificationsService, logger)
 	if err != nil {
 		log.Fatal("Falha ao configurar schema:", err)
 	}
