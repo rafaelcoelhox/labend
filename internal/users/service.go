@@ -67,6 +67,10 @@ func (s *service) CreateUser(ctx context.Context, input CreateUserInput) (*User,
 		return nil, errors.InvalidInput("email is required")
 	}
 
+	if input.Nickname == "" {
+		return nil, errors.InvalidInput("nickname is required")
+	}
+
 	_, err := s.repo.GetByEmail(ctx, input.Email)
 	if err == nil {
 		return nil, errors.AlreadyExists("user", "email", input.Email)
@@ -76,8 +80,9 @@ func (s *service) CreateUser(ctx context.Context, input CreateUserInput) (*User,
 	}
 
 	user := &User{
-		Name:  input.Name,
-		Email: input.Email,
+		Name:     input.Name,
+		Email:    input.Email,
+		Nickname: input.Nickname,
 	}
 
 	if err := user.Validate(); err != nil {
@@ -141,6 +146,19 @@ func (s *service) UpdateUser(ctx context.Context, id uint, input UpdateUserInput
 	if input.Email != nil {
 		user.Email = *input.Email
 	}
+	if input.Nickname != nil {
+		user.Nickname = *input.Nickname
+	}
+
+	if user.Nickname != "" {
+		_, err = s.repo.GetByNickname(ctx, user.Nickname)
+		if err == nil {
+			return nil, errors.AlreadyExists("user", "nickname", user.Nickname)
+		}
+		if !errors.Is(err, errors.ErrNotFound) {
+			return nil, err
+		}
+	}
 
 	if err := user.Validate(); err != nil {
 		return nil, errors.InvalidInput(err.Error())
@@ -155,9 +173,10 @@ func (s *service) UpdateUser(ctx context.Context, id uint, input UpdateUserInput
 		Type:   "UserUpdated",
 		Source: "users",
 		Data: map[string]interface{}{
-			"userID": user.ID,
-			"name":   user.Name,
-			"email":  user.Email,
+			"userID":   user.ID,
+			"name":     user.Name,
+			"email":    user.Email,
+			"nickname": user.Nickname,
 		},
 	})
 

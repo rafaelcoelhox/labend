@@ -165,6 +165,36 @@ func (mr *MockUsersRepositoryMockRecorder) GetByIDWithTx(arg0, arg1, arg2 interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDWithTx", reflect.TypeOf((*MockUsersRepository)(nil).GetByIDWithTx), arg0, arg1, arg2)
 }
 
+// GetByNickname mocks base method.
+func (m *MockUsersRepository) GetByNickname(arg0 context.Context, arg1 string) (*users.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByNickname", arg0, arg1)
+	ret0, _ := ret[0].(*users.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByNickname indicates an expected call of GetByNickname.
+func (mr *MockUsersRepositoryMockRecorder) GetByNickname(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByNickname", reflect.TypeOf((*MockUsersRepository)(nil).GetByNickname), arg0, arg1)
+}
+
+// GetByNicknameWithTx mocks base method.
+func (m *MockUsersRepository) GetByNicknameWithTx(arg0 context.Context, arg1 *gorm.DB, arg2 string) (*users.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByNicknameWithTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*users.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByNicknameWithTx indicates an expected call of GetByNicknameWithTx.
+func (mr *MockUsersRepositoryMockRecorder) GetByNicknameWithTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByNicknameWithTx", reflect.TypeOf((*MockUsersRepository)(nil).GetByNicknameWithTx), arg0, arg1, arg2)
+}
+
 // GetMultipleUsersXP mocks base method.
 func (m *MockUsersRepository) GetMultipleUsersXP(arg0 context.Context, arg1 []uint) (map[uint]int, error) {
 	m.ctrl.T.Helper()

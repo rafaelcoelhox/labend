@@ -12,6 +12,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"github.com/rafaelcoelhox/labbend/pkg/database"
 	"github.com/rafaelcoelhox/labbend/pkg/errors"
@@ -45,7 +46,13 @@ func setupTestDB(t *testing.T) (*gorm.DB, func()) {
 	dsn := fmt.Sprintf("postgres://testuser:testpass@%s:%s/testdb?sslmode=disable", host, port.Port())
 
 	// Conectar ao banco
-	config := database.DefaultConfig(dsn)
+	config := database.Config{
+		DSN:          dsn,
+		MaxIdleConns: 10,
+		MaxOpenConns: 100,
+		MaxLifetime:  time.Hour,
+		LogLevel:     logger.Silent, // Silenciar logs em testes
+	}
 	db, err := database.Connect(config)
 	require.NoError(t, err)
 

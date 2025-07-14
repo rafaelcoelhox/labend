@@ -11,6 +11,7 @@ type User struct {
 	ID        uint           `json:"id" gorm:"primarykey"`
 	Name      string         `json:"name" gorm:"not null;index"`
 	Email     string         `json:"email" gorm:"uniqueIndex;not null"`
+	Nickname  string         `json:"nickname" gorm:"not null"`
 	CreatedAt time.Time      `json:"created_at" gorm:"index"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
@@ -32,13 +33,15 @@ const (
 )
 
 type CreateUserInput struct {
-	Name  string `json:"name" validate:"required,min=2"`
-	Email string `json:"email" validate:"required,email"`
+	Name     string `json:"name" validate:"required,min=2"`
+	Email    string `json:"email" validate:"required,email"`
+	Nickname string `json:"nickname" validate:"required,min=2"`
 }
 
 type UpdateUserInput struct {
-	Name  *string `json:"name,omitempty"`
-	Email *string `json:"email,omitempty"`
+	Name     *string `json:"name,omitempty"`
+	Email    *string `json:"email,omitempty"`
+	Nickname *string `json:"nickname,omitempty"`
 }
 
 func (User) TableName() string {
@@ -56,6 +59,9 @@ func (u *User) Validate() error {
 	if u.Email == "" {
 		return ErrInvalidEmail
 	}
+	if u.Nickname == "" {
+		return ErrInvalidNickname
+	}
 	return nil
 }
 
@@ -70,6 +76,7 @@ func NewUserXP(userID uint, sourceType, sourceID string, amount int) *UserXP {
 }
 
 var (
-	ErrInvalidName  = errors.New("name is required")
-	ErrInvalidEmail = errors.New("email is required and must be valid")
+	ErrInvalidName     = errors.New("name is required")
+	ErrInvalidEmail    = errors.New("email is required and must be valid")
+	ErrInvalidNickname = errors.New("nickname is required and must be valid")
 )

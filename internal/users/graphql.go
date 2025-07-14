@@ -6,6 +6,7 @@ import (
 
 	"github.com/graphql-go/graphql"
 	"github.com/rafaelcoelhox/labbend/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // ===== GRAPHQL TYPES =====
@@ -29,6 +30,9 @@ var UserType = graphql.NewObject(graphql.ObjectConfig{
 			Type: graphql.String,
 		},
 		"updatedAt": &graphql.Field{
+			Type: graphql.String,
+		},
+		"nickname": &graphql.Field{
 			Type: graphql.String,
 		},
 	},
@@ -68,8 +72,26 @@ func userResolver(service Service, logger logger.Logger) graphql.FieldResolveFn 
 			return nil, fmt.Errorf("ID inválido: %v", err)
 		}
 
-		logger.Info("Buscando usuário")
-		return service.GetUserWithXP(p.Context, uint(userID))
+		logger.Info("Buscando usuário", zap.String("id", id))
+
+		user, err := service.GetUser(p.Context, uint(userID))
+		if err != nil {
+			logger.Error("Erro ao buscar usuário", zap.Error(err))
+			return nil, err
+		}
+
+		logger.Info("Usuário encontrado", zap.String("name", user.Name))
+
+		// Usar exatamente o mesmo formato que createUser
+		return map[string]interface{}{
+			"id":        fmt.Sprintf("%d", user.ID),
+			"name":      user.Name,
+			"email":     user.Email,
+			"nickname":  user.Nickname,
+			"totalXP":   0,
+			"createdAt": user.CreatedAt.String(),
+			"updatedAt": user.UpdatedAt.String(),
+		}, nil
 	}
 }
 
@@ -85,7 +107,36 @@ func usersResolver(service Service, logger logger.Logger) graphql.FieldResolveFn
 		}
 
 		logger.Info("Listando usuários")
-		return service.ListUsersWithXP(p.Context, limit, offset)
+
+		users, err := service.ListUsers(p.Context, limit, offset)
+		if err != nil {
+			logger.Error("Erro ao listar usuários", zap.Error(err))
+			return nil, err
+		}
+
+		logger.Info("Usuários encontrados", zap.Int("count", len(users)))
+
+		// Criar resultado usando exatamente o mesmo formato que createUser
+		var result []map[string]interface{}
+		for _, user := range users {
+			if user == nil {
+				continue
+			}
+
+			userMap := map[string]interface{}{
+				"id":        fmt.Sprintf("%d", user.ID),
+				"name":      user.Name,
+				"email":     user.Email,
+				"nickname":  user.Nickname,
+				"totalXP":   0,
+				"createdAt": user.CreatedAt.String(),
+				"updatedAt": user.UpdatedAt.String(),
+			}
+			result = append(result, userMap)
+		}
+
+		logger.Info("Retornando resultado", zap.Int("total", len(result)))
+		return result, nil
 	}
 }
 
@@ -105,12 +156,26 @@ func userXPHistoryResolver(service Service, logger logger.Logger) graphql.FieldR
 func createUserResolver(service Service, logger logger.Logger) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		input := CreateUserInput{
-			Name:  p.Args["name"].(string),
-			Email: p.Args["email"].(string),
+			Name:     p.Args["name"].(string),
+			Email:    p.Args["email"].(string),
+			Nickname: p.Args["nickname"].(string),
 		}
 
 		logger.Info("Criando usuário")
-		return service.CreateUser(p.Context, input)
+		user, err := service.CreateUser(p.Context, input)
+		if err != nil {
+			return nil, err
+		}
+
+		return map[string]interface{}{
+			"id":        fmt.Sprintf("%d", user.ID),
+			"name":      user.Name,
+			"email":     user.Email,
+			"nickname":  user.Nickname,
+			"totalXP":   0,
+			"createdAt": user.CreatedAt.String(),
+			"updatedAt": user.UpdatedAt.String(),
+		}, nil
 	}
 }
 
@@ -131,9 +196,26 @@ func updateUserResolver(service Service, logger logger.Logger) graphql.FieldReso
 			emailStr := email.(string)
 			updateInput.Email = &emailStr
 		}
+		if nickname, exists := p.Args["nickname"]; exists && nickname != nil {
+			nicknameStr := nickname.(string)
+			updateInput.Nickname = &nicknameStr
+		}
 
 		logger.Info("Atualizando usuário")
-		return service.UpdateUser(p.Context, uint(userID), updateInput)
+		user, err := service.UpdateUser(p.Context, uint(userID), updateInput)
+		if err != nil {
+			return nil, err
+		}
+
+		return map[string]interface{}{
+			"id":        fmt.Sprintf("%d", user.ID),
+			"name":      user.Name,
+			"email":     user.Email,
+			"nickname":  user.Nickname,
+			"totalXP":   0,
+			"createdAt": user.CreatedAt.String(),
+			"updatedAt": user.UpdatedAt.String(),
+		}, nil
 	}
 }
 
@@ -208,6 +290,9 @@ func Mutations(userService Service, logger logger.Logger) *graphql.Fields {
 				"email": &graphql.ArgumentConfig{
 					Type: graphql.NewNonNull(graphql.String),
 				},
+				"nickname": &graphql.ArgumentConfig{
+					Type: graphql.NewNonNull(graphql.String),
+				},
 			},
 			Resolve: createUserResolver(userService, logger),
 		},
@@ -222,6 +307,9 @@ func Mutations(userService Service, logger logger.Logger) *graphql.Fields {
 					Type: graphql.String,
 				},
 				"email": &graphql.ArgumentConfig{
+					Type: graphql.String,
+				},
+				"nickname": &graphql.ArgumentConfig{
 					Type: graphql.String,
 				},
 			},

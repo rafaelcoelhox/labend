@@ -12,6 +12,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, user *User) error
 	GetByID(ctx context.Context, id uint) (*User, error)
+	GetByNickname(ctx context.Context, nickname string) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id uint) error
@@ -27,6 +28,7 @@ type Repository interface {
 	CreateWithTx(ctx context.Context, tx *gorm.DB, user *User) error
 	CreateUserXPWithTx(ctx context.Context, tx *gorm.DB, userXP *UserXP) error
 	GetByIDWithTx(ctx context.Context, tx *gorm.DB, id uint) (*User, error)
+	GetByNicknameWithTx(ctx context.Context, tx *gorm.DB, nickname string) (*User, error)
 	UpdateWithTx(ctx context.Context, tx *gorm.DB, user *User) error
 	DeleteWithTx(ctx context.Context, tx *gorm.DB, id uint) error
 	RemoveUserXPWithTx(ctx context.Context, tx *gorm.DB, userID uint, sourceType, sourceID string, amount int) error
@@ -64,6 +66,21 @@ func (r *repository) GetByID(ctx context.Context, id uint) (*User, error) {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.NotFound("user", id)
+		}
+		return nil, errors.Internal(err)
+	}
+	return &user, nil
+}
+
+func (r *repository) GetByNickname(ctx context.Context, nickname string) (*User, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var user User
+	err := r.db.WithContext(ctx).Where("nickname = ?", nickname).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.NotFound("user", nickname)
 		}
 		return nil, errors.Internal(err)
 	}
@@ -277,6 +294,21 @@ func (r *repository) GetByIDWithTx(ctx context.Context, tx *gorm.DB, id uint) (*
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.NotFound("user", id)
+		}
+		return nil, errors.Internal(err)
+	}
+	return &user, nil
+}
+
+func (r *repository) GetByNicknameWithTx(ctx context.Context, tx *gorm.DB, nickname string) (*User, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var user User
+	err := tx.WithContext(ctx).Where("nickname = ?", nickname).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.NotFound("user", nickname)
 		}
 		return nil, errors.Internal(err)
 	}
