@@ -81,6 +81,15 @@ func NewApp(config Config) (*App, error) {
 
 	log.Info("Database connection established", zap.String("database", config.DatabaseURL))
 
+	// Auto migrate database tables using registered models
+	registeredModels := database.GetRegisteredModels()
+	log.Info("Auto migrating database", zap.Int("registered_models", len(registeredModels)))
+
+	if err := database.AutoMigrateRegistered(db); err != nil {
+		return nil, fmt.Errorf("failed to auto migrate database: %w", err)
+	}
+	log.Info("Database auto migration completed")
+
 	// Setup database transaction manager
 	txManager := database.NewTxManager(db)
 

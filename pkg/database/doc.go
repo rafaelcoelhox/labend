@@ -1,81 +1,63 @@
-// Package database fornece configuração e conexão otimizada com PostgreSQL
-// usando GORM como ORM para a aplicação LabEnd.
+// Package database provides database connection management and migration utilities.
 //
-// Este pacote implementa:
-//   - Configuração de connection pool otimizada para alta performance
-//   - Auto migration automático de entidades
-//   - Timeouts e configurações de segurança
-//   - Logging configurável para debugging
-//   - Health checks integrados
+// Este pacote oferece funcionalidades essenciais para gerenciamento de banco de dados
+// incluindo conexão, configuração, transações e migração automática de modelos.
 //
-// # Configurações de Performance
+// # Funcionalidades Principais
 //
-// O pacote implementa configurações otimizadas:
-//   - MaxIdleConns: 10 conexões idle para reutilização
-//   - MaxOpenConns: 100 conexões máximas simultâneas
-//   - ConnMaxLifetime: 1 hora para reciclagem de conexões
-//   - Timeouts: 5-10 segundos para prevenir locks
+//   - Conexão configurável com PostgreSQL via GORM
+//   - Pool de conexões otimizado
+//   - Sistema de registro automático de modelos
+//   - Migração automática thread-safe
+//   - Gerenciamento de transações
+//   - Logging integrado
 //
-// # Auto Migration
+// # Registro Automático de Modelos
 //
-// O sistema de migration automatiza:
-//   - Criação de tabelas baseada em structs Go
-//   - Atualização de schema em mudanças de modelo
-//   - Criação de índices definidos nas tags GORM
-//   - Validação de integridade referencial
+// O pacote oferece um sistema de registro automático que permite que módulos
+// registrem seus modelos para migração sem necessidade de hardcode:
+//
+//	// No arquivo init.go do módulo
+//	func init() {
+//		database.RegisterModel(&User{})
+//		database.RegisterModel(&UserXP{})
+//	}
+//
+//	// Na aplicação principal
+//	err = database.AutoMigrateRegistered(db)
 //
 // # Exemplo de Uso
 //
-//	// Configuração básica
-//	config := database.DefaultConfig(
-//		"postgres://user:pass@localhost/db?sslmode=disable",
-//	)
+//	config := database.Config{
+//		DSN:          "postgres://user:pass@localhost/db?sslmode=disable",
+//		MaxIdleConns: 10,
+//		MaxOpenConns: 100,
+//		MaxLifetime:  time.Hour,
+//		LogLevel:     logger.Info,
+//	}
 //
-//	// Conexão
 //	db, err := database.Connect(config)
 //	if err != nil {
 //		log.Fatal(err)
 //	}
 //
-//	// Auto migration
-//	err = database.AutoMigrate(db,
-//		&users.User{},
-//		&users.UserXP{},
-//		&challenges.Challenge{},
-//	)
-//
-// # Configuração Customizada
-//
-//	config := database.Config{
-//		DSN:          "postgres://...",
-//		MaxIdleConns: 20,
-//		MaxOpenConns: 200,
-//		MaxLifetime:  2 * time.Hour,
-//		LogLevel:     logger.Info,
+//	// Migração automática de todos os modelos registrados
+//	err = database.AutoMigrateRegistered(db)
+//	if err != nil {
+//		log.Fatal(err)
 //	}
-//
-//	db, err := database.Connect(config)
-//
-// # Health Monitoring
-//
-// O pacote integra com o sistema de health checks:
-//   - Ping de conectividade
-//   - Monitoramento de connection pool
-//   - Detecção de connection pool esgotado
-//   - Métricas de performance de queries
 //
 // # Thread Safety
 //
-// - GORM é thread-safe por design
-// - Connection pool gerencia concorrência automaticamente
-// - Transações são isoladas por goroutine
-// - Todas operações podem ser executadas concorrentemente
+// O sistema de registro de modelos é thread-safe e pode ser usado
+// com segurança em ambientes concorrentes.
 //
-// # Best Practices
+// # Performance
 //
-// - Sempre use context com timeout em queries
-// - Reutilize a instância *gorm.DB (é thread-safe)
-// - Use transações para operações atômicas
-// - Configure connection pool baseado na carga esperada
-// - Monitor métricas de connection pool em produção
+// - Pool de conexões configurável
+// - Conexões reutilizáveis com timeout
+// - Logging otimizado por nível
+//
+// Author: LabEnd Team
+// Version: 2.0.0
 package database
