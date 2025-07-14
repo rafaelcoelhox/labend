@@ -107,6 +107,7 @@ const serviceTemplate = `package {{.ModuleName}}
 import (
 	"context"
 	"github.com/rafaelcoelhox/labbend/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // Service - interface para lógica de negócio
@@ -142,7 +143,7 @@ func (s *service) Create(ctx context.Context, input Create{{.ModuleNameCap}}Inpu
 	
 	err := s.repo.Create(ctx, {{.ModuleName}})
 	if err != nil {
-		s.logger.Error("erro ao criar {{.ModuleName}}", "error", err)
+		s.logger.Error("failed to create {{.ModuleName}}", zap.Error(err))
 		return nil, err
 	}
 	
@@ -170,7 +171,6 @@ func (s *service) Delete(ctx context.Context, id uint) error {
 const graphqlTemplate = `package {{.ModuleName}}
 
 import (
-	"context"
 	"strconv"
 	"github.com/graphql-go/graphql"
 	"github.com/rafaelcoelhox/labbend/pkg/logger"
@@ -199,8 +199,8 @@ var {{.ModuleName}}Type = graphql.NewObject(graphql.ObjectConfig{
 })
 
 // Queries - configure as consultas GraphQL aqui
-func Queries(service Service, logger logger.Logger) graphql.Fields {
-	return graphql.Fields{
+func Queries(service Service, logger logger.Logger) *graphql.Fields {
+	queries := graphql.Fields{
 		"{{.ModuleName}}": &graphql.Field{
 			Type: {{.ModuleName}}Type,
 			Args: graphql.FieldConfigArgument{
@@ -220,11 +220,12 @@ func Queries(service Service, logger logger.Logger) graphql.Fields {
 			},
 		},
 	}
+	return &queries
 }
 
 // Mutations - configure as mutações GraphQL aqui  
-func Mutations(service Service, logger logger.Logger) graphql.Fields {
-	return graphql.Fields{
+func Mutations(service Service, logger logger.Logger) *graphql.Fields {
+	mutations := graphql.Fields{
 		"create{{.ModuleNameCap}}": &graphql.Field{
 			Type: {{.ModuleName}}Type,
 			Args: graphql.FieldConfigArgument{
@@ -257,5 +258,6 @@ func Mutations(service Service, logger logger.Logger) graphql.Fields {
 			},
 		},
 	}
+	return &mutations
 }
 `

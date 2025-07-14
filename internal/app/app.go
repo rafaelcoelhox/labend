@@ -14,7 +14,6 @@ import (
 
 	"github.com/rafaelcoelhox/labbend/internal/challenges"
 	schemas_configuration "github.com/rafaelcoelhox/labbend/internal/config/graphql"
-	"github.com/rafaelcoelhox/labbend/internal/notifications"
 	"github.com/rafaelcoelhox/labbend/internal/users"
 	"github.com/rafaelcoelhox/labbend/pkg/database"
 	"github.com/rafaelcoelhox/labbend/pkg/eventbus"
@@ -125,18 +124,18 @@ func (a *App) Start(ctx context.Context) error {
 	// Setup repositories
 	userRepo := users.NewRepository(a.db)
 	challengeRepo := challenges.NewRepository(a.db)
-	notificationsRepo := notifications.NewRepository(a.db)
 
 	// Setup services
 	userService := users.NewService(userRepo, a.logger, a.eventBus, a.txManager)
 	challengeService := challenges.NewService(challengeRepo, userService, a.logger, a.eventBus, a.txManager, a.sagaManager)
 
-	// Create adapter for notifications service
-	userServiceAdapter := &userServiceAdapter{userService: userService}
-	notificationsService := notifications.NewService(notificationsRepo, userServiceAdapter, a.logger, a.eventBus, a.txManager)
+	// Setup GraphQL schema usando o novo ModuleRegistry
+	registry := schemas_configuration.NewModuleRegistry(a.logger)
+	registry.Register("users", userService)
+	registry.Register("challenges", challengeService)
+	// Adicione novos módulos aqui: registry.Register("products", productService)
 
-	// Setup GraphQL schema usando configuração automática
-	schema, err := schemas_configuration.ConfigureSchema(userService, challengeService, notificationsService, a.logger)
+	schema, err := schemas_configuration.ConfigureSchema(registry)
 	if err != nil {
 		return fmt.Errorf("failed to build GraphQL schema: %w", err)
 	}

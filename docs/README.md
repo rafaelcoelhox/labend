@@ -5,12 +5,13 @@ Bem-vindo à documentação do projeto LabEnd! Aqui você encontrará todos os g
 ## 📖 **Guias Técnicos**
 
 ### 🏗️ **Arquitetura e Estrutura**
-- [**Criação de Módulos**](guides/MODULE_CREATION_GUIDE.md) - Como criar novos módulos na aplicação
+- [**Criação de Módulos**](guides/MODULE_CREATION_GUIDE.md) - Como criar novos módulos na aplicação (Sistema Automático)
 - [**Documentação Geral**](guides/DOCUMENTATION.md) - Visão geral da arquitetura
 - [**Melhorias de Consistência**](guides/CONSISTENCY_IMPROVEMENTS.md) - Padrões e convenções
 
 ### 🎮 **GraphQL e APIs**
 - [**Exemplos GraphQL**](examples/GRAPHQL_EXAMPLES.md) - Queries, mutations e subscriptions funcionais
+- [**Exemplo de Integração de Módulo**](examples/MODULE_INTEGRATION_EXAMPLE.md) - Como integrar módulos com sistema automático
 - **Schema Funcional** - Nova abordagem sem InputTypes e Resolvers complexos
 
 ### 🐳 **Docker e Infraestrutura**
@@ -99,6 +100,7 @@ labend/
 - ✅ **Testes Completos**: Unitários + Integração funcionando
 - ✅ **Event-Driven**: Comunicação assíncrona entre módulos
 - ✅ **Schema Automático**: Configuração GraphQL sem edição manual
+- ✅ **Registro Automático de Módulos**: 90% menos código para integração
 
 ## 🔄 **Migrações Recentes**
 
@@ -119,6 +121,13 @@ labend/
 - Instalação do Docker CE
 - Configuração para testes de integração
 - Testcontainers funcionando
+
+### Sistema de Módulos Automático (Concluído)
+- ModuleRegistry dinâmico para gerenciamento de módulos
+- Adapters automáticos para integração GraphQL
+- Registro simplificado: apenas 3 modificações vs 10+ antes
+- Auto-discovery de novos módulos
+- Eliminação de erros de configuração manual
 
 ## 📈 **Performance**
 

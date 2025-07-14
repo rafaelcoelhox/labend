@@ -4,20 +4,16 @@ import (
 	"maps"
 
 	"github.com/graphql-go/graphql"
-	"github.com/rafaelcoelhox/labbend/internal/challenges"
-	"github.com/rafaelcoelhox/labbend/internal/users"
-	"github.com/rafaelcoelhox/labbend/internal/notifications"
-	"github.com/rafaelcoelhox/labbend/pkg/logger"
 )
 
 // ConfigureSchema configura o schema GraphQL principal da aplicação
-// Integra todos os módulos e suas queries/mutations de forma automática
-func ConfigureSchema(userService users.Service, challengeService challenges.Service, notificationsService notifications.Service, logger logger.Logger) (graphql.Schema, error) {
+// Agora recebe um registry ao invés de parâmetros individuais
+func ConfigureSchema(registry *ModuleRegistry) (graphql.Schema, error) {
 	// Configura queries de todos os módulos
-	rootQuery := configQueries(userService, challengeService, notificationsService, logger)
+	rootQuery := configQueries(registry)
 
 	// Configura mutations de todos os módulos
-	rootMutation := configureMutations(userService, challengeService, notificationsService, logger)
+	rootMutation := configureMutations(registry)
 
 	// Cria o schema GraphQL principal
 	return graphql.NewSchema(graphql.SchemaConfig{
@@ -27,14 +23,22 @@ func ConfigureSchema(userService users.Service, challengeService challenges.Serv
 }
 
 // configQueries combina todas as queries dos módulos em um único objeto GraphQL
-func configQueries(userService users.Service, challengeService challenges.Service, notificationsService notifications.Service, logger logger.Logger) *graphql.Object {
-	// Combina queries de todos os módulos
-	allQueries := configureSchemaFields(
-		users.Queries(userService, logger),
-		challenges.Queries(challengeService, logger),
-		notifications.Queries(notificationsService, logger),
-		// Adicione novos módulos aqui automaticamente
-	)
+func configQueries(registry *ModuleRegistry) *graphql.Object {
+	allQueries := make(graphql.Fields)
+
+	// Itera sobre todos os módulos registrados
+	for _, moduleName := range GetRegisteredModules() {
+		service := registry.Get(moduleName)
+		if service != nil {
+			moduleAdapter := createModuleAdapter(moduleName, service)
+			if moduleAdapter != nil {
+				queries := moduleAdapter.Queries(registry.GetLogger())
+				if queries != nil {
+					maps.Copy(allQueries, *queries)
+				}
+			}
+		}
+	}
 
 	return graphql.NewObject(graphql.ObjectConfig{
 		Name:   "Query",
@@ -43,26 +47,25 @@ func configQueries(userService users.Service, challengeService challenges.Servic
 }
 
 // configureMutations combina todas as mutations dos módulos em um único objeto GraphQL
-func configureMutations(userService users.Service, challengeService challenges.Service, notificationsService notifications.Service, logger logger.Logger) *graphql.Object {
-	// Combina mutations de todos os módulos
-	allMutations := configureSchemaFields(
-		users.Mutations(userService, logger),
-		challenges.Mutations(challengeService, logger),
-		notifications.Mutations(notificationsService, logger),
-		// Adicione novos módulos aqui automaticamente
-	)
+func configureMutations(registry *ModuleRegistry) *graphql.Object {
+	allMutations := make(graphql.Fields)
+
+	// Itera sobre todos os módulos registrados
+	for _, moduleName := range GetRegisteredModules() {
+		service := registry.Get(moduleName)
+		if service != nil {
+			moduleAdapter := createModuleAdapter(moduleName, service)
+			if moduleAdapter != nil {
+				mutations := moduleAdapter.Mutations(registry.GetLogger())
+				if mutations != nil {
+					maps.Copy(allMutations, *mutations)
+				}
+			}
+		}
+	}
 
 	return graphql.NewObject(graphql.ObjectConfig{
 		Name:   "Mutation",
 		Fields: allMutations,
 	})
-}
-
-// configureSchemaFields combina múltiplos *graphql.Fields em um único graphql.Fields
-func configureSchemaFields(f ...*graphql.Fields) graphql.Fields {
-	fieldsToReturn := make(map[string]*graphql.Field)
-	for _, fields := range f {
-		maps.Copy(fieldsToReturn, *fields)
-	}
-	return fieldsToReturn
 }
