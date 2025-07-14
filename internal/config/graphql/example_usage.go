@@ -5,8 +5,8 @@ import (
 	"log"
 
 	"github.com/rafaelcoelhox/labbend/internal/challenges"
-	"github.com/rafaelcoelhox/labbend/pkg/logger"
 	"github.com/rafaelcoelhox/labbend/internal/users"
+	"github.com/rafaelcoelhox/labbend/pkg/logger"
 )
 
 // ExampleUsage demonstra como usar a configuração automática do schema

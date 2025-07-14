@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/rafaelcoelhox/labbend/pkg/database"
 	"github.com/rafaelcoelhox/labbend/internal/mocks"
 	"github.com/rafaelcoelhox/labbend/internal/users"
+	"github.com/rafaelcoelhox/labbend/pkg/database"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )

@@ -3,8 +3,8 @@ package graph
 import (
 	"github.com/graphql-go/graphql"
 	"github.com/rafaelcoelhox/labbend/internal/challenges"
-	"github.com/rafaelcoelhox/labbend/pkg/logger"
 	"github.com/rafaelcoelhox/labbend/internal/users"
+	"github.com/rafaelcoelhox/labbend/pkg/logger"
 )
 
 // BuildSchema constrói o schema GraphQL completo combinando os módulos
